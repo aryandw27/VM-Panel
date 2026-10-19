@@ -1,0 +1,116 @@
+<%
+const panelName = (settings['panel.name'] && settings['panel.name'] !== 'vpanel' && settings['panel.name'] !== 'vPanel Pro') ? settings['panel.name'] : 'SiliconHost';
+let logo = '';
+if (settings['panel.logo_mode'] === 'upload' && settings['panel.logo_file']) logo = settings['panel.logo_file'];
+else if (settings['panel.logo_mode'] === 'url' && settings['panel.logo_url']) logo = settings['panel.logo_url'];
+if (!logo) logo = '/arix/Arix.png';
+%>
+<% if (user && user.is_impersonating) { %>
+<div class="impersonation-banner" style="background:linear-gradient(90deg, #d97706, #f59e0b);color:#1e1002;padding:7px 18px;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,0.35);position:sticky;top:0;z-index:9999">
+  <div style="display:flex;align-items:center;gap:8px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span><strong>Active Tenant Impersonation:</strong> Viewing as <strong><%= user.username %></strong> (Admin session: <em><%= user.impersonated_by || 'Admin' %></em>)</span>
+  </div>
+  <form method="POST" action="/auth/impersonate/revert" style="margin:0">
+    <button type="submit" style="background:#1e1002;color:#fbbf24;border:none;border-radius:6px;padding:4px 12px;font-weight:700;font-size:11.5px;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 1px 4px rgba(0,0,0,0.3)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+      Exit Impersonation
+    </button>
+  </form>
+</div>
+<% } %>
+
+<div class="topbar">
+  <button class="icon-btn hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="menu" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  
+  <a href="/" class="brand" onclick="window.location.href='/'; return true;" style="display:flex;align-items:center;gap:10px;text-decoration:none;cursor:pointer" title="SiliconHost — Go to Landing Page">
+    <img src="/images/silicon-logo.png" alt="SiliconHost Logo" style="width:28px;height:28px;border-radius:7px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,0.35);flex-shrink:0" />
+    <span class="brand-text" style="font-weight:700;letter-spacing:-0.02em;font-size:16px"><%= panelName %></span>
+  </a>
+
+  <div class="topbar-right">
+    <% if (user) { %>
+      
+      <div class="clock-chip hide-mobile" style="display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);border-radius:9999px;padding:5px 14px;font-size:11.5px;color:var(--gray-300)">
+        <span style="color:var(--gray-400)">Local time</span>
+        <span id="topbarLiveTime" style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--gray-50)">9:41am</span>
+      </div>
+
+      
+      <a href="/" class="btn btn-sm btn-outline hide-mobile" style="display:flex;align-items:center;gap:6px" title="View Public Landing Page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Landing
+      </a>
+
+      
+      <div class="topbar-search" onclick="openCommandPalette()" style="cursor:pointer" title="Search or type Ctrl+K">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search resources... (Ctrl+K)" id="globalSearch" readonly style="cursor:pointer"/>
+        <kbd style="font-size:10px;padding:2px 6px;background:var(--gray-700);border:1px solid var(--border);border-radius:4px;color:var(--gray-300);font-family:var(--font-mono)">⌘K</kbd>
+      </div>
+
+      <a class="icon-btn" href="/settings/appearance" title="Appearance settings" aria-label="Appearance settings" style="border-radius:var(--radius-pill)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-1.65 1.65-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21h-2.34v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06-1.65-1.65.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H7v-2.34h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06 1.65-1.65.06.06a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 0 1-1.51V7h2.34v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06 1.65 1.65-.06.06a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 0 1.51 1H21v2.34h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      </a>
+
+      <% if (user.role === 'admin' || user.root_admin) { %>
+        <% if (typeof page === 'string' && page.startsWith('admin')) { %>
+          <a class="btn btn-sm btn-outline hide-mobile" href="/dashboard" style="display:flex;align-items:center;gap:6px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            User Panel
+          </a>
+        <% } else { %>
+          <a class="btn btn-sm btn-primary hide-mobile" href="/admin" style="display:flex;align-items:center;gap:6px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Admin Panel
+          </a>
+        <% } %>
+        <a class="btn btn-sm btn-primary hide-mobile" href="/admin/servers/create">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+          New Server
+        </a>
+      <% } %>
+
+      
+      <div class="flex" style="gap:10px;align-items:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);backdrop-filter:blur(16px);border-radius:999px;padding:3px 14px 3px 4px;box-shadow:var(--liquid-specular)">
+        <div class="avatar">
+          <% if (user.avatar) { %>
+            <img src="<%= user.avatar %>" alt="avatar"/>
+          <% } else { %>
+            <%= (user.username[0] || 'U').toUpperCase() %>
+          <% } %>
+        </div>
+        <div style="line-height:1.2">
+          <div style="font-weight:600;font-size:13px;color:var(--gray-50)"><%= user.username %></div>
+          <div class="muted text-sm" style="font-size:10.5px;text-transform:capitalize;color:var(--gray-400)"><%= user.role || 'user' %></div>
+        </div>
+        <a href="/logout" title="Logout" style="color:var(--gray-400);margin-left:4px;display:flex;align-items:center;transition:color 0.2s ease" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        </a>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  function updateTopbarClock() {
+    const clockEl = document.getElementById('topbarLiveTime');
+    if (!clockEl) return;
+    const now = new Date();
+    let hours = now.getHours();
+    const meridiem = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12 || 12;
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    clockEl.textContent = `${hours}:${minutes}${meridiem}`;
+  }
+  updateTopbarClock();
+  setInterval(updateTopbarClock, 1000);
+});
+</script>
+
+<% if (user) { %>
+  <%- include('command_palette') %>
+<% } %>

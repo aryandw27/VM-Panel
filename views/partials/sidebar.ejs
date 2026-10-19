@@ -1,0 +1,128 @@
+<% 
+const isAdmin = user && (user.role === 'admin' || user.root_admin);
+const hasVm = typeof vm !== 'undefined' && vm;
+const isAdminView = isAdmin && typeof page === 'string' && page.startsWith('admin');
+
+function act(p, current) { return p === current ? 'active' : ''; }
+function vmNav(icon, label, slug, current) {
+  if (!hasVm) return '';
+  const href = `/servers/${vm.id}/${slug}`;
+  return `<a href="${href}" class="nav-link ${act(slug, current)}"><span class="v-icon">${icon}</span><span>${label}</span></a>`;
+}
+
+
+const iconHome = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2 2z"/><path d="M9 22V12h6v10"/></svg>';
+const iconServer = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>';
+const iconActivity = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
+const iconStorage = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+const iconNetwork = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"/></svg>';
+const iconMongo = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>';
+const iconUsers = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+const iconKey = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>';
+const iconLayers = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+const iconShield = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+const iconCrown = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14v2H5v-2z"/></svg>';
+const iconSettings = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+const iconUpdates = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>';
+const iconWand = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="m17.8 11.8 1.4 1.4"/><path d="m17.8 6.2 1.4-1.4"/><path d="m12.2 11.8-1.4 1.4"/><path d="m12.2 6.2-1.4-1.4"/><path d="M9 21 3 15"/></svg>';
+const iconLogout = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
+const iconUser = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+
+
+const iconOverview = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>';
+const iconConsole = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
+const iconFiles = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>';
+const iconBackups = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
+const iconClock = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+const iconRocket = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>';
+%>
+<div class="sidebar">
+  <% if (isAdminView) { %>
+    
+    <div class="nav-section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Basic Administration</span>
+      <span class="pill pill-gray" style="font-size:9.5px;padding:2px 8px">ADMIN</span>
+    </div>
+    <a href="/admin" class="nav-link <%= act('admin-dashboard', page) %>"><span class="v-icon"><%- iconHome %></span><span>Overview</span></a>
+    <a href="/admin/settings" class="nav-link <%= act('admin-settings', page) %>"><span class="v-icon"><%- iconSettings %></span><span>Settings</span></a>
+    <a href="/admin/settings?tab=arix" class="nav-link arix-nav-glow"><span class="v-icon"><%- iconWand %></span><span>Arix Theme</span></a>
+    <a href="/admin/api" class="nav-link <%= act('admin-api', page) %>"><span class="v-icon"><%- iconKey %></span><span>Application API</span></a>
+
+    <div class="nav-section-title">Management</div>
+    <a href="/admin/servers" class="nav-link <%= act('admin-servers', page) %>"><span class="v-icon"><%- iconServer %></span><span>Servers &amp; VMs</span></a>
+    <a href="/admin/nodes" class="nav-link <%= act('admin-nodes', page) %>"><span class="v-icon"><%- iconActivity %></span><span>Nodes &amp; Monitoring</span></a>
+    <a href="/admin/users" class="nav-link <%= act('admin-users', page) %>"><span class="v-icon"><%- iconUsers %></span><span>Users</span></a>
+    <a href="/admin/storage" class="nav-link <%= act('admin-storage', page) %>"><span class="v-icon"><%- iconStorage %></span><span>Storage &amp; ISOs</span></a>
+    <a href="/admin/network" class="nav-link <%= act('admin-network', page) %>"><span class="v-icon"><%- iconNetwork %></span><span>Network &amp; Firewall</span></a>
+    <a href="/admin/security" class="nav-link <%= act('admin-security', page) %>"><span class="v-icon"><%- iconShield %></span><span>Rate Limits &amp; IP Security</span></a>
+    <a href="/admin/mongodb" class="nav-link <%= act('admin-mongodb', page) %>"><span class="v-icon"><%- iconMongo %></span><span>Databases (MongoDB)</span></a>
+    <a href="/admin/plugins" class="nav-link <%= act('admin-plugins', page) %>"><span class="v-icon"><%- iconLayers %></span><span>Plugins &amp; Addons</span></a>
+    <a href="/admin/audit" class="nav-link <%= act('admin-audit', page) %>"><span class="v-icon"><%- iconShield %></span><span>Audit &amp; Security</span></a>
+
+    <% const hasUpdateAvailable = settings && settings['update.available'] === '1'; %>
+    <a href="/admin/updates" class="nav-link <%= act('admin-updates', page) %>" style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="v-icon"><%- iconUpdates %></span>
+        <span>Updates</span>
+      </div>
+      <% if (hasUpdateAvailable) { %>
+        <span class="pill font-bold" style="background:#f59e0b;color:#1e1002;font-size:10px;padding:2px 7px;border-radius:10px">NEW</span>
+      <% } %>
+    </a>
+
+    <div class="nav-section-title">Quick Switch</div>
+    <a href="/dashboard" class="nav-link"><span class="v-icon"><%- iconUser %></span><span>Switch to User View</span></a>
+
+  <% } else { %>
+    
+    <div class="nav-section-title">Navigation</div>
+    <a href="/dashboard" class="nav-link <%= act('dashboard', page) %>"><span class="v-icon"><%- iconHome %></span><span>Dashboard</span></a>
+
+    <% if (hasVm) { %>
+      <div class="nav-section-title">Server: <%= vm.name %></div>
+      <%- vmNav(iconOverview, 'Overview', 'overview', page) %>
+      <%- vmNav(iconConsole, 'Terminal / Console', 'console', page) %>
+      <%- vmNav(iconFiles, 'File Manager', 'files', page) %>
+      <%- vmNav(iconBackups, 'Backups', 'backups', page) %>
+      <%- vmNav(iconClock, 'Schedules', 'schedules', page) %>
+      <%- vmNav(iconRocket, 'Startup &amp; Boot', 'startup', page) %>
+      <%- vmNav(iconUsers, 'Subusers', 'subusers', page) %>
+      <%- vmNav(iconSettings, 'Settings', 'settings', page) %>
+      <%- vmNav(iconActivity, 'Activity Logs', 'activity', page) %>
+    <% } %>
+
+    <div class="nav-section-title">Account</div>
+    <a href="/profile" class="nav-link <%= act('profile', page) %>"><span class="v-icon"><%- iconUser %></span><span>Profile</span></a>
+    <a href="/settings" class="nav-link <%= act('userSettings', page) %>"><span class="v-icon"><%- iconSettings %></span><span>Account Settings</span></a>
+    <a href="/settings/appearance" class="nav-link <%= act('appearance', page) %>"><span class="v-icon"><%- iconWand %></span><span>Appearance</span></a>
+    <a href="/settings/ai" class="nav-link <%= act('aiSettings', page) %>"><span class="v-icon"><%- iconWand %></span><span>AI assistant</span></a>
+    <a href="/activity" class="nav-link <%= act('activity', page) %>"><span class="v-icon"><%- iconActivity %></span><span>Activity</span></a>
+    <a href="/incidents" class="nav-link <%= act('incidents', page) %>"><span class="v-icon"><%- iconActivity %></span><span>Incidents</span></a>
+
+    <% if (isAdmin) { %>
+      <div class="nav-section-title">Administration</div>
+      <a href="/admin" class="nav-link arix-nav-glow" style="font-weight:700"><span class="v-icon"><%- iconCrown %></span><span>Admin Control Plane</span></a>
+    <% } %>
+  <% } %>
+
+  <div class="nav-section-title">Website</div>
+  <a href="/" class="nav-link" style="color:#cf8047;font-weight:600">
+    <span class="v-icon">
+      <svg viewBox="0 0 48 48" fill="currentColor" width="17" height="17"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+    </span>
+    <span>Landing Page</span>
+  </a>
+
+  <div class="nav-section-title" style="margin-top:auto">Session</div>
+  <a href="/logout" class="nav-link" style="color:var(--gray-400)"><span class="v-icon"><%- iconLogout %></span><span>Logout</span></a>
+</div>
+<button class="vp-ai-launch" id="vpAiLaunch" type="button" aria-label="Open AI assistant"><i data-lucide="sparkles"></i><span>AI assistant</span><kbd>⌘ J</kbd></button>
+<div class="vp-ai-backdrop" id="vpAiBackdrop" hidden></div>
+<aside class="vp-ai-drawer" id="vpAiDrawer" role="dialog" aria-modal="true" aria-label="AI assistant" aria-hidden="true">
+  <header class="vp-ai-head"><div class="vp-ai-identity"><span class="vp-ai-status" id="vpAiStatusDot" aria-hidden="true"></span><div><div class="vp-ai-title">AI assistant</div><div class="vp-ai-subtitle" id="vpAiProviderStatus">Bring your own API key</div></div></div><div class="vp-ai-head-actions"><button type="button" class="vp-ai-icon" id="vpAiNew" title="New conversation" aria-label="New conversation">＋</button><a class="vp-ai-icon vp-ai-icon-link" href="/settings/ai" title="Assistant settings" aria-label="Assistant settings">⚙</a><button type="button" class="vp-ai-icon" id="vpAiClose" title="Close (Esc)" aria-label="Close assistant">×</button></div></header>
+  <div class="vp-ai-threadbar"><select id="vpAiThreads" aria-label="Conversation history"><option value="">Choose a conversation</option></select><button id="vpAiRename" type="button" title="Rename conversation" aria-label="Rename conversation">✎</button><button id="vpAiDelete" type="button" title="Delete conversation" aria-label="Delete conversation">⌫</button></div>
+  <div class="vp-ai-messages" id="vpAiMessages" aria-live="polite"><div class="vp-ai-empty"><div class="vp-ai-orb" aria-hidden="true">✦</div><h3>Investigate, diagnose, fix</h3><p>Ask about your servers, logs, metrics, incidents, and files. I inspect first and only act with your approval.</p><div class="vp-ai-suggestions" role="group" aria-label="Suggested prompts"><button type="button" data-ai-suggestion="Diagnose why my server stopped unexpectedly">Diagnose a crashed server</button><button type="button" data-ai-suggestion="Show me the recent terminal output for my server">Inspect terminal logs</button><button type="button" data-ai-suggestion="Check resource usage across my servers">Check VPS resource usage</button><button type="button" data-ai-suggestion="List my servers and their current status">List my servers</button><button type="button" data-ai-suggestion="Show me any active incidents">Review active incidents</button><button type="button" data-ai-suggestion="Explain the most recent error in my logs">Explain a recent error</button></div><p class="vp-ai-setup" id="vpAiSetupPrompt" hidden>No provider key yet. <a href="/settings/ai">Configure one in AI settings</a> to start chatting.</p></div></div>
+  <div class="vp-ai-activity" id="vpAiActivity" hidden></div>
+  <form class="vp-ai-compose" id="vpAiForm"><textarea id="vpAiInput" rows="2" maxlength="12000" placeholder="Message the assistant…" aria-label="Your message"></textarea><button id="vpAiSend" type="submit" aria-label="Send message"><i data-lucide="arrow-up"></i></button><small><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</small></form>
+</aside>
+<script src="/js/ai-assistant.js" defer></script>

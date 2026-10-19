@@ -1,0 +1,480 @@
+<%- include('../partials/head', { title: 'System Updates' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+
+<div class="main">
+  
+  <div class="flex-between mb-3" style="flex-wrap:wrap;gap:12px">
+    <div>
+      <h2 style="font-size:22px;display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        System Updates
+      </h2>
+      <div class="muted text-sm">Automated system update engine with pre-update backups, live step streaming, and zero-downtime reload</div>
+    </div>
+    <div class="flex" style="gap:8px">
+      <button class="btn btn-sm" id="btnCheckUpdates" onclick="checkUpdatesNow()" style="display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" id="iconCheckSpin"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <span id="lblCheckUpdates">Check for Updates</span>
+      </button>
+      <% if (status.updateAvailable) { %>
+        <button class="btn btn-sm btn-primary" onclick="openUpdateModal()" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;box-shadow:0 0 16px rgba(245,158,11,0.4);font-weight:700;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          Update Now
+        </button>
+      <% } %>
+    </div>
+  </div>
+
+  
+  <div class="card mb-3" style="position:relative;overflow:hidden">
+    <div style="position:absolute;right:-20px;top:-20px;width:140px;height:140px;border-radius:50%;background:<%= status.updateAvailable ? 'rgba(245,158,11,0.06)' : 'rgba(16,185,129,0.06)' %>;filter:blur(30px);pointer-events:none"></div>
+
+    <div class="flex-between" style="flex-wrap:wrap;gap:20px">
+      
+      <div class="flex" style="gap:24px;align-items:center;flex-wrap:wrap">
+        <div>
+          <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Installed Version</div>
+          <div style="font-size:24px;font-weight:800;color:#fff;font-family:monospace;display:flex;align-items:center;gap:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color:var(--gray-300)"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <%= status.currentVersion %>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;color:var(--gray-400)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+
+        <div>
+          <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Latest Release</div>
+          <div style="font-size:24px;font-weight:800;color:<%= status.updateAvailable ? '#fbbf24' : 'var(--emerald)' %>;font-family:monospace;display:flex;align-items:center;gap:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color:var(--gray-300)"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+            <%= status.latestVersion %>
+          </div>
+        </div>
+      </div>
+
+      
+      <div style="text-align:right">
+        <div style="margin-bottom:8px">
+          <% if (status.updateAvailable) { %>
+            <span class="pill font-bold" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24;font-size:13px;padding:6px 14px">
+              <span class="pulse-dot" style="background:#fbbf24;margin-right:6px"></span> Update Available
+            </span>
+          <% } else { %>
+            <span class="pill font-bold" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:#10b981;font-size:13px;padding:6px 14px">
+              <span class="pulse-dot" style="background:#10b981;margin-right:6px"></span> System is Up to Date
+            </span>
+          <% } %>
+        </div>
+        <div class="muted text-sm">
+          Last checked: <%= status.lastChecked ? new Date(status.lastChecked).toLocaleString() : 'Just now' %>
+          <span style="margin:0 4px">•</span> Channel: <strong><%= updateSettings.channel.toUpperCase() %></strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="grid grid-3 mb-3" style="gap:16px">
+    
+    <div class="card" style="grid-column:span 2">
+      <div class="flex-between mb-3">
+        <div class="card-title" style="margin:0;display:flex;align-items:center;gap:8px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Release Notes (<%= status.latestVersion %>)
+        </div>
+        <div class="flex" style="gap:8px">
+          <% if (updateInfo && updateInfo.htmlUrl) { %>
+            <a href="<%= updateInfo.htmlUrl %>" target="_blank" class="btn btn-sm" style="display:flex;align-items:center;gap:5px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              View on GitHub
+            </a>
+          <% } %>
+          <% if (status.updateAvailable) { %>
+            <button class="btn btn-sm btn-primary" onclick="openUpdateModal()" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none">
+              Update Now
+            </button>
+          <% } %>
+        </div>
+      </div>
+
+      <div style="background:#060913;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:18px;max-height:360px;overflow-y:auto">
+        <% if (updateInfo && updateInfo.releaseName) { %>
+          <div style="font-weight:700;font-size:15px;color:#fff;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <%= updateInfo.releaseName %>
+          </div>
+        <% } %>
+        <div class="changelog-body" style="font-size:13.5px;line-height:1.65;color:#cbd5e1;white-space:pre-wrap;font-family:inherit">
+<%= updateInfo && updateInfo.changelog ? updateInfo.changelog : 'No changelog available.' %>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="card">
+      <div class="card-title mb-3">Update Preferences</div>
+
+      <div class="form-group mb-3">
+        <label>Release Channel</label>
+        <select id="uChannel">
+          <option value="stable" <%= updateSettings.channel === 'stable' ? 'selected' : '' %>>Stable (Recommended)</option>
+          <option value="beta" <%= updateSettings.channel === 'beta' ? 'selected' : '' %>>Beta / Pre-release</option>
+        </select>
+      </div>
+
+      <div class="check mb-3">
+        <input type="checkbox" id="uAutoCheck" <%= updateSettings.auto_check ? 'checked' : '' %> />
+        <div>
+          <strong>Auto-Check Releases</strong>
+          <div class="muted text-sm">Background check every 24 hours</div>
+        </div>
+      </div>
+
+      <div class="check mb-3">
+        <input type="checkbox" id="uBackup" <%= updateSettings.backup_before ? 'checked' : '' %> />
+        <div>
+          <strong>Pre-Update Snapshot</strong>
+          <div class="muted text-sm">Backup files & configs before updating</div>
+        </div>
+      </div>
+
+      <div class="check mb-3">
+        <input type="checkbox" id="uRestart" <%= updateSettings.auto_pm2_restart ? 'checked' : '' %> />
+        <div>
+          <strong>Auto-Restart PM2 Cluster</strong>
+          <div class="muted text-sm">Reload zero-downtime worker processes</div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-sm" onclick="saveUpdateSettings()" style="width:100%">
+        Save Preferences
+      </button>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-title mb-3">Update History & Rollback Ledger</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date &amp; Time</th>
+            <th>Version Transition</th>
+            <th>Status</th>
+            <th>Backup Snapshot</th>
+            <th>Triggered By</th>
+            <th class="right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (history.length === 0) { %>
+            <tr>
+              <td colspan="6" style="text-align:center;padding:32px" class="muted">No system update records logged yet.</td>
+            </tr>
+          <% } else { %>
+            <% for (const h of history) { %>
+              <tr>
+                <td class="muted text-sm"><%= new Date(h.timestamp).toLocaleString() %></td>
+                <td>
+                  <strong style="color:#fff"><%= h.from_version %></strong> ➔ <strong style="color:var(--accent)"><%= h.to_version %></strong>
+                </td>
+                <td>
+                  <% if (h.status === 'SUCCESS') { %>
+                    <span class="pill pill-green font-bold">SUCCESS</span>
+                  <% } else if (h.status === 'ROLLED_BACK') { %>
+                    <span class="pill pill-yellow font-bold">ROLLED BACK</span>
+                  <% } else { %>
+                    <span class="pill pill-red font-bold">FAILED</span>
+                  <% } %>
+                </td>
+                <td style="font-family:monospace;font-size:11.5px;color:#94a3b8">
+                  <%= h.backup_id || 'None' %>
+                </td>
+                <td><%= h.user || 'Admin' %></td>
+                <td class="right">
+                  <% if (h.backup_id && h.status !== 'ROLLED_BACK') { %>
+                    <button class="btn btn-sm" onclick="rollbackUpdate(<%= h.id %>)" style="color:#fbbf24;border-color:rgba(245,158,11,0.4)">
+                      Rollback
+                    </button>
+                  <% } else { %>
+                    <span class="muted text-sm">—</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% } %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<div id="updateModal" class="update-modal-backdrop" style="display:none">
+  <div class="update-modal-card">
+    
+    <div class="flex-between" style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,rgba(245,158,11,0.25),rgba(217,119,6,0.15));border:1px solid rgba(245,158,11,0.35);display:flex;align-items:center;justify-content:center;color:#fbbf24">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:15px;color:#fff" id="updateModalTitle">Updating vPanel Pro...</div>
+          <div style="font-size:11.5px;color:#94a3b8">Target: <strong style="color:#fbbf24"><%= status.latestVersion %></strong></div>
+        </div>
+      </div>
+      <button class="icon-btn" id="btnCloseUpdateModal" onclick="closeUpdateModal()" style="display:none;color:#94a3b8">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    
+    <div style="padding:20px">
+      
+      <div style="margin-bottom:18px">
+        <div class="flex-between mb-1" style="font-size:12px">
+          <span id="stepLabel" style="font-weight:600;color:#fff">Preparing update...</span>
+          <span id="stepPct" style="font-weight:700;color:#fbbf24;font-family:monospace">0%</span>
+        </div>
+        <div style="width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden">
+          <div id="progressBar" style="width:0%;height:100%;background:linear-gradient(90deg,#f59e0b,#10b981);transition:width 0.3s ease"></div>
+        </div>
+      </div>
+
+      
+      <div class="steps-checklist mb-3" style="background:#060913;border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+        <div class="step-row" id="st1"><span class="step-icon">○</span> <span>1. Environment Verification</span></div>
+        <div class="step-row" id="st2"><span class="step-icon">○</span> <span>2. System Snapshot Backup</span></div>
+        <div class="step-row" id="st3"><span class="step-icon">○</span> <span>3. Fetching Release Files</span></div>
+        <div class="step-row" id="st4"><span class="step-icon">○</span> <span>4. Installing Dependencies (npm)</span></div>
+        <div class="step-row" id="st5"><span class="step-icon">○</span> <span>5. Applying Migrations &amp; Build</span></div>
+        <div class="step-row" id="st6"><span class="step-icon">○</span> <span>6. Reloading Application Cluster</span></div>
+      </div>
+
+      
+      <div style="margin-bottom:12px">
+        <div class="flex-between mb-1" style="font-size:11.5px;color:#94a3b8">
+          <span>Live Console Stream:</span>
+          <span id="streamStatePill" class="pill pill-green" style="font-size:10px;padding:1px 6px"><span class="pulse-dot"></span> Live</span>
+        </div>
+        <div id="updateTerminalLog" style="height:140px;overflow-y:auto;background:#030712;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;font-family:monospace;font-size:11.5px;color:#38bdf8;line-height:1.45;white-space:pre-wrap"></div>
+      </div>
+
+      
+      <div id="updateCompleteBox" style="display:none;text-align:center;padding:12px 0">
+        <div style="font-size:18px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--emerald)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><path d="M20 6L9 17l-5-5"/></svg>
+          Update Complete!
+        </div>
+        <div style="font-size:12.5px;color:#94a3b8;margin-bottom:14px">vPanel Pro has been updated successfully and the cluster was reloaded.</div>
+        <button class="btn btn-primary" onclick="window.location.reload()" style="padding:8px 24px">Reload Page</button>
+      </div>
+
+      <div id="updateFailedBox" style="display:none;text-align:center;padding:12px 0">
+        <div style="font-size:18px;font-weight:700;margin-bottom:6px;color:var(--rose);display:flex;align-items:center;justify-content:center;gap:8px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Update Failed
+        </div>
+        <div id="updateFailReason" style="font-size:12.5px;color:#f87171;margin-bottom:14px">An error occurred during execution.</div>
+        <div class="flex" style="justify-content:center;gap:10px">
+          <button class="btn" onclick="closeUpdateModal()">Dismiss</button>
+          <button class="btn btn-primary" onclick="startUpdatePipeline()">Retry</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.update-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 18, 0.85);
+  backdrop-filter: blur(10px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.update-modal-card {
+  background: #0d1322;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 14px;
+  max-width: 580px;
+  width: 100%;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.7), 0 0 35px rgba(245,158,11,0.2);
+  overflow: hidden;
+}
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #64748b;
+  padding: 4px 0;
+}
+.step-row.active {
+  color: #fbbf24;
+  font-weight: 600;
+}
+.step-row.done {
+  color: #10b981;
+  font-weight: 600;
+}
+.step-row.done .step-icon {
+  color: #10b981;
+}
+.step-row.active .step-icon {
+  color: #fbbf24;
+}
+</style>
+
+<script>
+let sseSource = null;
+
+function checkUpdatesNow() {
+  const btn = document.getElementById('btnCheckUpdates');
+  const icon = document.getElementById('iconCheckSpin');
+  const lbl = document.getElementById('lblCheckUpdates');
+  icon.style.animation = 'spin 1s linear infinite';
+  lbl.textContent = 'Checking...';
+
+  fetch('/admin/updates/check', { method: 'POST' })
+    .then(r => r.json())
+    .then(res => {
+      window.location.reload();
+    })
+    .catch(e => {
+      VP.toast(VP.errorMessage(e, 'Update check failed. Try again later.'), 'error');
+      icon.style.animation = 'none';
+      lbl.textContent = 'Check for Updates';
+    });
+}
+
+function openUpdateModal() {
+  document.getElementById('updateModal').style.display = 'flex';
+  startUpdatePipeline();
+}
+
+function closeUpdateModal() {
+  document.getElementById('updateModal').style.display = 'none';
+  if (sseSource) {
+    sseSource.close();
+    sseSource = null;
+  }
+}
+
+function startUpdatePipeline() {
+  document.getElementById('updateCompleteBox').style.display = 'none';
+  document.getElementById('updateFailedBox').style.display = 'none';
+  document.getElementById('btnCloseUpdateModal').style.display = 'none';
+
+  
+  connectUpdateSSE();
+
+  
+  fetch('/admin/updates/start', { method: 'POST' })
+    .then(r => r.json())
+    .then(res => {
+      if (!res.ok) {
+        document.getElementById('updateFailedBox').style.display = 'block';
+        document.getElementById('updateFailReason').textContent = res.error || 'Failed to start update';
+        document.getElementById('btnCloseUpdateModal').style.display = 'block';
+      }
+    })
+    .catch(e => {
+      document.getElementById('updateFailedBox').style.display = 'block';
+      document.getElementById('updateFailReason').textContent = e.message;
+      document.getElementById('btnCloseUpdateModal').style.display = 'block';
+    });
+}
+
+function connectUpdateSSE() {
+  if (sseSource) sseSource.close();
+  sseSource = new EventSource('/admin/updates/stream');
+
+  const logBox = document.getElementById('updateTerminalLog');
+
+  sseSource.addEventListener('log', (e) => {
+    const data = JSON.parse(e.data);
+    logBox.textContent += data.text + '\n';
+    logBox.scrollTop = logBox.scrollHeight;
+  });
+
+  sseSource.addEventListener('step', (e) => {
+    const data = JSON.parse(e.data);
+    document.getElementById('stepLabel').textContent = data.title;
+    document.getElementById('stepPct').textContent = data.pct + '%';
+    document.getElementById('progressBar').style.width = data.pct + '%';
+
+    
+    for (let i = 1; i <= 6; i++) {
+      const row = document.getElementById('st' + i);
+      if (!row) continue;
+      if (i < data.step) {
+        row.className = 'step-row done';
+        row.querySelector('.step-icon').textContent = '✔';
+      } else if (i === data.step) {
+        row.className = 'step-row active';
+        row.querySelector('.step-icon').textContent = '▶';
+      } else {
+        row.className = 'step-row';
+        row.querySelector('.step-icon').textContent = '○';
+      }
+    }
+  });
+
+  sseSource.addEventListener('done', () => {
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('stepPct').textContent = '100%';
+    document.getElementById('stepLabel').textContent = 'Update Completed!';
+    document.getElementById('updateCompleteBox').style.display = 'block';
+    document.getElementById('btnCloseUpdateModal').style.display = 'block';
+    if (sseSource) sseSource.close();
+  });
+
+  sseSource.addEventListener('error', (e) => {
+    try {
+      const err = JSON.parse(e.data);
+      document.getElementById('updateFailedBox').style.display = 'block';
+      document.getElementById('updateFailReason').textContent = err.message || 'Error occurred';
+      document.getElementById('btnCloseUpdateModal').style.display = 'block';
+    } catch (_) {}
+  });
+}
+
+function rollbackUpdate(historyId) {
+  if (!await VP.confirmDialog('Roll back to this backup? The panel will restart and recent changes may be lost.', { title: 'Roll back panel?', confirmText: 'Roll back' })) return;
+  fetch('/admin/updates/rollback/' + historyId, { method: 'POST' })
+    .then(r => r.json())
+    .then(res => {
+      if (res.ok) {
+        VP.toast('Rollback successful. The panel is reloading.', 'success');
+        window.location.reload();
+      } else {
+        VP.toast(VP.errorMessage({ message: 'Rollback failed: ' + res.error }), 'error', { sticky: true });
+      }
+    });
+}
+
+function saveUpdateSettings() {
+  const channel = document.getElementById('uChannel').value;
+  const auto_check = document.getElementById('uAutoCheck').checked;
+  const backup_before = document.getElementById('uBackup').checked;
+  const auto_pm2_restart = document.getElementById('uRestart').checked;
+
+  fetch('/admin/updates/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel, auto_check, backup_before, auto_pm2_restart })
+  })
+    .then(r => r.json())
+    .then(res => {
+      VP.toast(res.message || 'Preferences saved.', 'success');
+    });
+}
+</script>

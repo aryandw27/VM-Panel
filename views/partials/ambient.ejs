@@ -1,0 +1,36 @@
+<%
+const bgMode = settings['panel.bg_mode'] || 'color';
+const themeMode = settings['panel.theme'] || 'dark';
+const isDark = themeMode === 'dark';
+let bgColor = settings['panel.bg_color'] || (isDark ? '#0b0d11' : '#f4f6fa');
+const overlay = settings['panel.bg_overlay'] || '0.75';
+const blurVal = settings['panel.bg_blur'] || '28';
+const transparencyVal = settings['panel.bg_transparency'] || '72';
+const cover = settings['panel.bg_cover'] !== '0' && settings['panel.bg_cover'] !== 0 && settings['panel.bg_cover'] !== false;
+const img = settings['panel.bg_file'] || settings['panel.bg_url'] || '';
+const vid = settings['panel.bg_video_file'] || settings['panel.bg_video_url'] || '';
+const opacityRatio = (parseFloat(transparencyVal)/100).toFixed(2);
+%>
+<style id="customizationStyles">
+:root {
+  --panel-blur: <%= blurVal %>px;
+  --panel-transparency: <%= transparencyVal %>%;
+  --bg-card: <%= isDark ? `rgba(22, 26, 35, ${opacityRatio})` : `rgba(255, 255, 255, ${opacityRatio})` %>;
+  --glass: rgba(255, 255, 255, <%= (0.08 * (parseFloat(transparencyVal)/100)).toFixed(3) %>);
+  --bg-overlay-val: <%= overlay %>;
+}
+.card, .stat, .sidebar, .topbar, .music-player, .modal-card {
+  backdrop-filter: blur(var(--panel-blur)) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(var(--panel-blur)) saturate(200%) !important;
+}
+</style>
+
+<div id="bgLayer" class="bg-layer" style="<%= (bgMode === 'image' && img) ? `background-image:url('${img}');background-size:${cover ? 'cover' : 'contain'};background-position:center;background-repeat:no-repeat;` : bgMode === 'gradient' ? `background:radial-gradient(1200px 800px at 20% 10%, rgba(99,102,241,0.25), transparent 60%), radial-gradient(1000px 700px at 85% 90%, rgba(56,189,248,0.2), transparent 55%), ${bgColor};` : bgMode === 'color' ? `background-color:${bgColor};` : '' %>">
+  <% if (bgMode === 'video' && vid) { %>
+    <video id="bgVideo" autoplay muted loop playsinline preload="auto" src="<%= vid %>"></video>
+  <% } else { %>
+    <video id="bgVideo" autoplay muted loop playsinline preload="auto" style="display:none"></video>
+  <% } %>
+</div>
+
+<div id="bgOverlay" class="bg-overlay" style="background:rgba(5,8,18,var(--bg-overlay-val));<%= (bgMode === 'color' || bgMode === 'gradient') ? 'display:none;' : '' %>"></div>

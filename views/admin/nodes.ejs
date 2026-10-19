@@ -1,0 +1,576 @@
+<%- include('../partials/head', { title: 'Node Management' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+
+<%
+  const nodeList = (typeof nodes !== 'undefined' && nodes) || [];
+  const stats = (typeof nodeStats !== 'undefined' && nodeStats) || {};
+  const filterVal = (typeof filterQuery !== 'undefined' && filterQuery) || '';
+%>
+
+<div class="main">
+  
+  <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;gap:6px">
+    <a href="/admin" style="color:var(--text-muted);text-decoration:none">Admin</a>
+    <span>/</span>
+    <span style="color:var(--accent);font-weight:600">Nodes</span>
+  </div>
+
+  
+  <div class="flex-between mb-4" style="flex-wrap:wrap;gap:12px">
+    <div>
+      <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.4px;margin:0">Nodes</h2>
+      <div class="muted" style="margin-top:2px">All hypervisor nodes and compute hosts available on the system.</div>
+    </div>
+    <div class="flex" style="gap:10px">
+      <a class="btn btn-primary" href="/admin/nodes/create" style="background:#10b981;border-color:#10b981;display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
+        Create New Node
+      </a>
+    </div>
+  </div>
+
+  
+  <% if (user && (user.root_admin || user.role === 'admin')) { %>
+  <div class="card mb-4" id="ma-node-section" style="border:1px solid rgba(59,130,246,0.35);background:rgba(59,130,246,0.03);padding:18px">
+    <div class="flex-between mb-3" style="border-bottom:1px solid rgba(255,255,255,0.07);padding-bottom:10px">
+      <div style="font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;color:#60a5fa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Mass Actions
+      </div>
+      <span id="ma-selected-count" class="pill pill-blue font-bold" style="font-size:11px;padding:3px 10px">0 nodes selected</span>
+    </div>
+
+    <div class="grid grid-3" style="gap:18px;align-items:start">
+      
+      <div>
+        <div class="muted text-sm font-bold mb-1" style="color:var(--text);display:flex;align-items:center;gap:5px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Set App Name
+        </div>
+        <p class="muted text-sm" style="font-size:11.5px;margin-bottom:8px">Applies to selected nodes' Wings configuration.</p>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="ma-app-name" placeholder="e.g. vPanel Pro" style="height:32px;padding:4px 8px;font-size:12px;border-radius:6px;width:100%"/>
+          <button id="ma-btn-appname" type="button" class="btn btn-sm btn-primary" onclick="massApplyAppName()" disabled style="font-size:11px;padding:4px 10px;white-space:nowrap">Apply</button>
+        </div>
+        <div id="ma-appname-result" style="margin-top:6px;font-size:11.5px"></div>
+      </div>
+
+      
+      <div>
+        <div class="muted text-sm font-bold mb-1" style="color:var(--text);display:flex;align-items:center;gap:5px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Wings Service
+        </div>
+        <p class="muted text-sm" style="font-size:11.5px;margin-bottom:8px">Control Wings daemon across selected nodes.</p>
+        <div class="flex" style="gap:6px">
+          <button id="ma-btn-start" type="button" class="btn btn-sm btn-green" onclick="massWingsAction('start')" disabled style="font-size:11px;padding:3px 8px">Start</button>
+          <button id="ma-btn-restart" type="button" class="btn btn-sm" onclick="massWingsAction('restart')" disabled style="font-size:11px;padding:3px 8px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24">Restart</button>
+          <button id="ma-btn-stop" type="button" class="btn btn-sm btn-danger" onclick="massWingsAction('stop')" disabled style="font-size:11px;padding:3px 8px">Stop</button>
+        </div>
+        <div id="ma-wings-result" style="margin-top:6px;font-size:11.5px"></div>
+      </div>
+
+      
+      <div>
+        <div class="muted text-sm font-bold mb-1" style="color:var(--text);display:flex;align-items:center;gap:5px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Selection
+        </div>
+        <p class="muted text-sm" style="font-size:11.5px;margin-bottom:8px">Use table checkboxes or shortcuts below.</p>
+        <div class="flex" style="gap:6px">
+          <button type="button" class="btn btn-sm" onclick="massSelectAll()" style="font-size:11px;padding:3px 8px">Select All</button>
+          <button type="button" class="btn btn-sm" onclick="massDeselectAll()" style="font-size:11px;padding:3px 8px">Deselect All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  
+  <div class="card mb-4">
+    <div class="flex-between mb-3" style="align-items:center;gap:16px;flex-wrap:wrap">
+      <div class="card-title" style="margin:0;display:flex;align-items:center;gap:8px;white-space:nowrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg>
+        Node List (<span id="nodeCount"><%= nodeList.length %></span>)
+      </div>
+
+      
+      <div class="flex" style="gap:8px;align-items:center;flex-wrap:nowrap">
+        <div style="position:relative;width:220px">
+          <input type="search" id="nodeFilter" value="<%= filterVal %>" placeholder="Search nodes…" style="width:100%;height:34px;padding:6px 10px 6px 30px;font-size:12px;border-radius:6px;box-sizing:border-box"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <% if (nodeList.length === 0) { %>
+      <div class="empty" style="padding:36px;text-align:center">
+        <p style="font-size:15px;font-weight:600;color:var(--text)">No nodes configured</p>
+        <p class="muted">No compute nodes have been added yet.</p>
+        <div class="mt-3"><a href="/admin/nodes/create" class="btn btn-primary">Create First Node</a></div>
+      </div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table id="nodeTable">
+          <thead>
+            <tr>
+              <th style="width:36px;text-align:center" class="muted">☰</th>
+              <% if (user && (user.root_admin || user.role === 'admin')) { %>
+                <th style="width:36px;text-align:center">
+                  <input type="checkbox" id="ma-check-all" title="Select all on this page" onclick="massToggleAll(this.checked)" style="width:16px;height:16px;cursor:pointer"/>
+                </th>
+              <% } %>
+              <th style="width:36px;text-align:center">Ping</th>
+              <th>Name</th>
+              <th>Location</th>
+              <th>Memory</th>
+              <th>Disk</th>
+              <th class="text-center">Servers</th>
+              <th class="text-center">Limit</th>
+              <th class="text-center">SSL</th>
+              <th class="text-center">Public</th>
+              <th style="width:140px;text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% for (const n of nodeList) { 
+                 const locName = n.location ? n.location.short : 'local';
+                 const isSsl = n.scheme === 'https';
+            %>
+              <tr class="node-row" data-search="<%= `${n.name} ${n.fqdn} ${locName}`.toLowerCase() %>">
+                <td style="text-align:center;color:var(--text-muted);cursor:grab">⋮⋮</td>
+                <% if (user && (user.root_admin || user.role === 'admin')) { %>
+                  <td style="text-align:center">
+                    <input type="checkbox" class="ma-node-check" data-node-id="<%= n.id %>" data-node-name="<%= n.name %>" onchange="massUpdateUI()" style="width:16px;height:16px;cursor:pointer"/>
+                  </td>
+                <% } %>
+                <td style="text-align:center">
+                  <span class="pill pill-green" title="Wings daemon online" style="padding:0;width:9px;height:9px;border-radius:50%;display:inline-block"></span>
+                </td>
+                <td>
+                  <a href="/admin/nodes/<%= n.id %>" style="font-weight:700;color:#fff;text-decoration:none;font-size:13.5px">
+                    <%= n.name %>
+                  </a>
+                  <div class="muted text-sm mono" style="font-size:10.5px"><%= n.scheme %>://<%= n.fqdn %>:<%= n.daemonListen || 8080 %></div>
+                </td>
+                <td style="white-space:nowrap">
+                  <span class="pill pill-gray font-bold" style="font-size:11px"><%= locName %></span>
+                </td>
+                <td style="white-space:nowrap">
+                  <div class="font-bold text-white"><%= n.allocated_memory || 0 %> / <%= n.memory %> MiB</div>
+                </td>
+                <td style="white-space:nowrap">
+                  <div class="font-bold text-white"><%= n.allocated_disk || 0 %> / <%= n.disk %> MiB</div>
+                </td>
+                <td class="text-center">
+                  <span class="pill pill-blue font-bold" style="font-size:11px"><%= n.servers_count || 0 %></span>
+                </td>
+                <td class="text-center muted">
+                  <%= n.server_limit ? n.server_limit : '—' %>
+                </td>
+                <td class="text-center">
+                  <% if (isSsl) { %>
+                    <span title="SSL Encrypted (HTTPS)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="color:var(--emerald);vertical-align:middle"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                  <% } else { %>
+                    <span title="HTTP (No SSL)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="color:var(--rose);vertical-align:middle"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></span>
+                  <% } %>
+                </td>
+                <td class="text-center">
+                  <% if (n.public) { %>
+                    <span title="Public Node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="color:var(--sky);vertical-align:middle"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                  <% } else { %>
+                    <span title="Private Node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="color:var(--gray-400);vertical-align:middle"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></span>
+                  <% } %>
+                </td>
+                <td style="text-align:right;white-space:nowrap">
+                  <div class="flex" style="gap:4px;justify-content:flex-end">
+                    <a class="btn btn-sm" href="/admin/nodes/<%= n.id %>" style="padding:4px 10px;font-size:11px">Manage</a>
+                    <a class="btn btn-sm" href="/admin/nodes/<%= n.id %>#settings" style="padding:4px 8px;font-size:11px" title="Settings">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+
+  
+  <div class="card mb-4" id="telemetryCard">
+    <div class="flex-between mb-3" style="align-items:center;flex-wrap:wrap;gap:12px">
+      <div class="card-title" style="margin:0;display:flex;align-items:center;gap:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        <span>Primary Host Live Telemetry</span>
+      </div>
+      <div class="flex" style="gap:10px;align-items:center">
+        <span class="pill pill-green font-bold" style="display:flex;align-items:center;gap:6px">
+          <span style="width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981;display:inline-block"></span>
+          <span id="tel-hostname"><%= stats.hostname || 'Primary Hypervisor' %></span> Online
+        </span>
+        <button class="btn btn-sm btn-outline" onclick="pollTelemetry(true)" title="Refresh Telemetry Metrics" style="padding:4px 10px;font-size:11px;display:flex;align-items:center;gap:4px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+
+    <% 
+      const cpuVal = stats.cpu ? stats.cpu.percent : 0;
+      const memVal = stats.memory ? stats.memory.percent : 0;
+      const diskVal = stats.disk ? stats.disk.percent : 0;
+      const uptimeH = Math.floor((stats.uptime_seconds || 0) / 3600);
+      const uptimeM = Math.floor(((stats.uptime_seconds || 0) % 3600) / 60);
+    %>
+
+    <div class="grid grid-4" style="gap:16px">
+      
+      <div class="telemetry-box" style="background:var(--neu-surface, var(--bg-card, #121214));border:var(--neu-border, 1px solid var(--border));border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--neu-raised-sm, 0 2px 10px rgba(0,0,0,0.08));position:relative;overflow:hidden">
+        <div>
+          <div class="flex-between" style="align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--gray-400)">Host CPU Load</span>
+            <span class="pill pill-blue font-bold" style="font-size:10.5px;padding:2px 8px;border-radius:999px" id="tel-cpu-pill"><%= cpuVal %>%</span>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:var(--gray-50);letter-spacing:-0.03em" id="tel-cpu-val"><%= cpuVal %>%</div>
+          <div class="mono" style="font-size:11px;color:var(--gray-400);margin-top:3px" id="tel-cpu-sub">
+            <%= stats.cpu ? stats.cpu.cores_count : 2 %> Cores · Load <%= stats.cpu && stats.cpu.load_avg ? stats.cpu.load_avg.join(', ') : '0.00' %>
+          </div>
+        </div>
+
+        
+        <div style="margin-top:14px;position:relative;height:44px">
+          <svg viewBox="0 0 200 44" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
+            <defs>
+              <linearGradient id="cpuAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.38"/>
+                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path id="tel-cpu-area" fill="url(#cpuAreaGrad)" d="M0,44 L0,32 Q50,20 100,28 T200,18 L200,44 Z"/>
+            <path id="tel-cpu-line" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" d="M0,32 Q50,20 100,28 T200,18"/>
+          </svg>
+        </div>
+
+        
+        <div style="height:6px;background:rgba(125,125,125,0.12);border-radius:9999px;overflow:hidden;margin-top:10px;border:1px solid var(--border)">
+          <div id="tel-cpu-bar" style="height:100%;width:<%= Math.min(Math.max(cpuVal, 4), 100) %>%;background:linear-gradient(90deg, #3b82f6, #60a5fa);border-radius:9999px;transition:width 0.4s ease"></div>
+        </div>
+      </div>
+
+      
+      <div class="telemetry-box" style="background:var(--neu-surface, var(--bg-card, #121214));border:var(--neu-border, 1px solid var(--border));border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--neu-raised-sm, 0 2px 10px rgba(0,0,0,0.08));position:relative;overflow:hidden">
+        <div>
+          <div class="flex-between" style="align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--gray-400)">Host Memory (RAM)</span>
+            <span class="pill pill-green font-bold" style="font-size:10.5px;padding:2px 8px;border-radius:999px" id="tel-mem-pill"><%= memVal %>%</span>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:var(--gray-50);letter-spacing:-0.03em" id="tel-mem-val"><%= memVal %>%</div>
+          <div class="mono" style="font-size:11px;color:var(--gray-400);margin-top:3px" id="tel-mem-sub">
+            <%= stats.memory ? `${stats.memory.used_mb} / ${stats.memory.total_mb} MB` : '0 MB' %>
+          </div>
+        </div>
+
+        
+        <div style="margin-top:14px;position:relative;height:44px">
+          <svg viewBox="0 0 200 44" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
+            <defs>
+              <linearGradient id="memAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#10b981" stop-opacity="0.38"/>
+                <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path id="tel-mem-area" fill="url(#memAreaGrad)" d="M0,44 L0,22 Q60,30 120,15 T200,20 L200,44 Z"/>
+            <path id="tel-mem-line" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" d="M0,22 Q60,30 120,15 T200,20"/>
+          </svg>
+        </div>
+
+        
+        <div style="height:6px;background:rgba(125,125,125,0.12);border-radius:9999px;overflow:hidden;margin-top:10px;border:1px solid var(--border)">
+          <div id="tel-mem-bar" style="height:100%;width:<%= Math.min(Math.max(memVal, 4), 100) %>%;background:linear-gradient(90deg, #10b981, #34d399);border-radius:9999px;transition:width 0.4s ease"></div>
+        </div>
+      </div>
+
+      
+      <div class="telemetry-box" style="background:var(--neu-surface, var(--bg-card, #121214));border:var(--neu-border, 1px solid var(--border));border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--neu-raised-sm, 0 2px 10px rgba(0,0,0,0.08));position:relative;overflow:hidden">
+        <div>
+          <div class="flex-between" style="align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--gray-400)">Host Disk Usage</span>
+            <span class="pill pill-yellow font-bold" style="font-size:10.5px;padding:2px 8px;border-radius:999px" id="tel-disk-pill"><%= diskVal %>%</span>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:var(--gray-50);letter-spacing:-0.03em" id="tel-disk-val"><%= diskVal %>%</div>
+          <div class="mono" style="font-size:11px;color:var(--gray-400);margin-top:3px" id="tel-disk-sub">
+            <%= stats.disk ? `${stats.disk.used_gb} / ${stats.disk.total_gb} GB` : '0 GB' %>
+          </div>
+        </div>
+
+        
+        <div style="margin-top:14px;position:relative;height:44px">
+          <svg viewBox="0 0 200 44" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
+            <defs>
+              <linearGradient id="diskAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.38"/>
+                <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path id="tel-disk-area" fill="url(#diskAreaGrad)" d="M0,44 L0,28 Q70,25 140,26 T200,24 L200,44 Z"/>
+            <path id="tel-disk-line" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" d="M0,28 Q70,25 140,26 T200,24"/>
+          </svg>
+        </div>
+
+        
+        <div style="height:6px;background:rgba(125,125,125,0.12);border-radius:9999px;overflow:hidden;margin-top:10px;border:1px solid var(--border)">
+          <div id="tel-disk-bar" style="height:100%;width:<%= Math.min(Math.max(diskVal, 4), 100) %>%;background:linear-gradient(90deg, #f59e0b, #fbbf24);border-radius:9999px;transition:width 0.4s ease"></div>
+        </div>
+      </div>
+
+      
+      <div class="telemetry-box" style="background:var(--neu-surface, var(--bg-card, #121214));border:var(--neu-border, 1px solid var(--border));border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--neu-raised-sm, 0 2px 10px rgba(0,0,0,0.08));position:relative;overflow:hidden">
+        <div>
+          <div class="flex-between" style="align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--gray-400)">System Uptime</span>
+            <span class="pill pill-purple font-bold" style="font-size:10.5px;padding:2px 8px;border-radius:999px">100% HEALTH</span>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:var(--gray-50);letter-spacing:-0.03em" id="tel-uptime-val"><%= uptimeH %>h <%= uptimeM %>m</div>
+          <div class="mono" style="font-size:11px;color:var(--gray-400);margin-top:3px" id="tel-uptime-sub">
+            Daemon: <%= Math.floor((stats.process_uptime || 0) / 60) %>m · Platform <%= stats.os ? stats.os.platform : 'Host' %>
+          </div>
+        </div>
+
+        
+        <div style="margin-top:14px;position:relative;height:44px">
+          <svg viewBox="0 0 200 44" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
+            <defs>
+              <linearGradient id="uptAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.38"/>
+                <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path id="tel-upt-area" fill="url(#uptAreaGrad)" d="M0,44 L0,20 Q50,32 100,16 T200,14 L200,44 Z"/>
+            <path id="tel-upt-line" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-linecap="round" d="M0,20 Q50,32 100,16 T200,14"/>
+          </svg>
+        </div>
+
+        
+        <div style="height:6px;background:rgba(125,125,125,0.12);border-radius:9999px;overflow:hidden;margin-top:10px;border:1px solid var(--border)">
+          <div style="height:100%;width:100%;background:linear-gradient(90deg, #8b5cf6, #c084fc);border-radius:9999px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<%- include('../partials/music') %>
+<%- include('../partials/foot') %>
+
+<script>
+
+document.getElementById('nodeFilter')?.addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  let count = 0;
+  document.querySelectorAll('.node-row').forEach(row => {
+    const text = row.getAttribute('data-search') || '';
+    const match = !q || text.includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) count++;
+  });
+  const countEl = document.getElementById('nodeCount');
+  if (countEl) countEl.textContent = count;
+});
+
+
+function massGetSelectedIds() {
+  return Array.from(document.querySelectorAll('.ma-node-check:checked'))
+              .map(cb => parseInt(cb.getAttribute('data-node-id'), 10));
+}
+
+function massUpdateUI() {
+  const ids = massGetSelectedIds();
+  const count = ids.length;
+  const countEl = document.getElementById('ma-selected-count');
+  if (countEl) countEl.textContent = `${count} node${count === 1 ? '' : 's'} selected`;
+
+  const disabled = count === 0;
+  ['ma-btn-appname', 'ma-btn-start', 'ma-btn-restart', 'ma-btn-stop'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+
+  const allCb = document.getElementById('ma-check-all');
+  if (allCb) {
+    const all = document.querySelectorAll('.ma-node-check');
+    allCb.checked = all.length > 0 && count === all.length;
+    allCb.indeterminate = count > 0 && count < all.length;
+  }
+}
+
+function massToggleAll(checked) {
+  document.querySelectorAll('.ma-node-check').forEach(cb => { cb.checked = checked; });
+  massUpdateUI();
+}
+
+function massSelectAll() { massToggleAll(true); }
+function massDeselectAll() { massToggleAll(false); }
+
+async function massApplyAppName() {
+  const ids = massGetSelectedIds();
+  if (!ids.length) return;
+  const app_name = document.getElementById('ma-app-name').value.trim();
+  const resultEl = document.getElementById('ma-appname-result');
+  if (resultEl) resultEl.innerHTML = '<span class="muted">Applying app name...</span>';
+
+  try {
+    const res = await VP.api('/admin/nodes/mass/app-name', {
+      method: 'POST',
+      body: { node_ids: ids, app_name }
+    });
+    VP.toast(`Updated ${res.updated || 0} node(s)`, 'success');
+    if (resultEl) resultEl.innerHTML = `<span style="color:#10b981">✔ Updated ${res.updated || 0} node(s)</span>`;
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+    if (resultEl) resultEl.innerHTML = `<span style="color:#ef4444">✖ ${e.message}</span>`;
+  }
+}
+
+async function massWingsAction(action) {
+  const ids = massGetSelectedIds();
+  if (!ids.length) return;
+  const resultEl = document.getElementById('ma-wings-result');
+  if (resultEl) resultEl.innerHTML = `<span class="muted">Sending ${action}...</span>`;
+
+  try {
+    await VP.api('/admin/nodes/mass/wings-control', {
+      method: 'POST',
+      body: { node_ids: ids, action }
+    });
+    VP.toast(`Wings action '${action}' dispatched to ${ids.length} node(s)`, 'success');
+    if (resultEl) resultEl.innerHTML = `<span style="color:#10b981">✔ Dispatched to ${ids.length} node(s)</span>`;
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+    if (resultEl) resultEl.innerHTML = `<span style="color:#ef4444">✖ ${e.message}</span>`;
+  }
+}
+
+
+function buildSvgPath(values, maxVal = 100, width = 200, height = 42) {
+  if (!values || values.length < 2) {
+    const v = values && values.length ? values[0] : 10;
+    const y = height - (v / maxVal) * (height - 8) - 4;
+    return {
+      line: `M0,${y} L${width},${y}`,
+      area: `M0,${y} L${width},${y} L${width},${height} L0,${height} Z`
+    };
+  }
+  const pts = values.map((val, idx) => {
+    const x = (idx / (values.length - 1)) * width;
+    const y = Math.max(4, Math.min(height - 4, height - (val / maxVal) * (height - 8) - 4));
+    return [x, y];
+  });
+  let line = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    line += ` L${pts[i][0].toFixed(1)},${pts[i][1].toFixed(1)}`;
+  }
+  const area = `${line} L${width},${height} L0,${height} Z`;
+  return { line, area };
+}
+
+let cpuHistory = [<%= (stats.history && stats.history.cpu && stats.history.cpu.length) ? stats.history.cpu.join(',') : '8,12,10,14,9,16,11,8' %>];
+let memHistory = [<%= (stats.history && stats.history.memory && stats.history.memory.length) ? stats.history.memory.join(',') : '78,80,79,82,81,83,82,82' %>];
+let diskHistory = [<%= stats.disk ? stats.disk.percent : 40 %>, <%= stats.disk ? stats.disk.percent : 40 %>, <%= stats.disk ? stats.disk.percent : 40 %>];
+let uptHistory = [15, 18, 14, 20, 16, 22, 19, 21];
+
+function updateTelemetryGraphs() {
+  const cpuPaths = buildSvgPath(cpuHistory, 100);
+  const memPaths = buildSvgPath(memHistory, 100);
+  const diskPaths = buildSvgPath(diskHistory, 100);
+  const uptPaths = buildSvgPath(uptHistory, 30);
+
+  const cArea = document.getElementById('tel-cpu-area');
+  const cLine = document.getElementById('tel-cpu-line');
+  if (cArea) cArea.setAttribute('d', cpuPaths.area);
+  if (cLine) cLine.setAttribute('d', cpuPaths.line);
+
+  const mArea = document.getElementById('tel-mem-area');
+  const mLine = document.getElementById('tel-mem-line');
+  if (mArea) mArea.setAttribute('d', memPaths.area);
+  if (mLine) mLine.setAttribute('d', memPaths.line);
+
+  const dArea = document.getElementById('tel-disk-area');
+  const dLine = document.getElementById('tel-disk-line');
+  if (dArea) dArea.setAttribute('d', diskPaths.area);
+  if (dLine) dLine.setAttribute('d', diskPaths.line);
+
+  const uArea = document.getElementById('tel-upt-area');
+  const uLine = document.getElementById('tel-upt-line');
+  if (uArea) uArea.setAttribute('d', uptPaths.area);
+  if (uLine) uLine.setAttribute('d', uptPaths.line);
+}
+updateTelemetryGraphs();
+
+async function pollTelemetry(manual = false) {
+  try {
+    const res = await fetch('/admin/nodes/status');
+    const data = await res.json();
+    if (!data.ok || !data.stats) return;
+    const s = data.stats;
+
+    
+    const cpuPct = s.cpu ? s.cpu.percent : 0;
+    cpuHistory.push(cpuPct);
+    if (cpuHistory.length > 25) cpuHistory.shift();
+    const cVal = document.getElementById('tel-cpu-val');
+    const cPill = document.getElementById('tel-cpu-pill');
+    const cBar = document.getElementById('tel-cpu-bar');
+    const cSub = document.getElementById('tel-cpu-sub');
+    if (cVal) cVal.textContent = cpuPct + '%';
+    if (cPill) cPill.textContent = cpuPct + '%';
+    if (cBar) cBar.style.width = Math.min(Math.max(cpuPct, 4), 100) + '%';
+    if (cSub && s.cpu) cSub.textContent = `${s.cpu.cores_count} Cores · Load ${s.cpu.load_avg ? s.cpu.load_avg.join(', ') : '0.00'}`;
+
+    
+    const memPct = s.memory ? s.memory.percent : 0;
+    memHistory.push(memPct);
+    if (memHistory.length > 25) memHistory.shift();
+    const mVal = document.getElementById('tel-mem-val');
+    const mPill = document.getElementById('tel-mem-pill');
+    const mBar = document.getElementById('tel-mem-bar');
+    const mSub = document.getElementById('tel-mem-sub');
+    if (mVal) mVal.textContent = memPct + '%';
+    if (mPill) mPill.textContent = memPct + '%';
+    if (mBar) mBar.style.width = Math.min(Math.max(memPct, 4), 100) + '%';
+    if (mSub && s.memory) mSub.textContent = `${s.memory.used_mb} / ${s.memory.total_mb} MB`;
+
+    
+    const diskPct = s.disk ? s.disk.percent : 0;
+    diskHistory.push(diskPct);
+    if (diskHistory.length > 25) diskHistory.shift();
+    const dVal = document.getElementById('tel-disk-val');
+    const dPill = document.getElementById('tel-disk-pill');
+    const dBar = document.getElementById('tel-disk-bar');
+    const dSub = document.getElementById('tel-disk-sub');
+    if (dVal) dVal.textContent = diskPct + '%';
+    if (dPill) dPill.textContent = diskPct + '%';
+    if (dBar) dBar.style.width = Math.min(Math.max(diskPct, 4), 100) + '%';
+    if (dSub && s.disk) dSub.textContent = `${s.disk.used_gb} / ${s.disk.total_gb} GB (${s.disk.free_gb} GB free)`;
+
+    
+    if (s.uptime_seconds) {
+      const uH = Math.floor(s.uptime_seconds / 3600);
+      const uM = Math.floor((s.uptime_seconds % 3600) / 60);
+      const uVal = document.getElementById('tel-uptime-val');
+      if (uVal) uVal.textContent = `${uH}h ${uM}m`;
+    }
+
+    uptHistory.push(Math.round(15 + Math.random() * 10));
+    if (uptHistory.length > 25) uptHistory.shift();
+
+    updateTelemetryGraphs();
+    if (manual && window.VP?.toast) VP.toast('Telemetry metrics refreshed', 'success');
+  } catch (_) {}
+}
+setInterval(pollTelemetry, 3000);
+</script>

@@ -1,0 +1,107 @@
+<%- include('../partials/head', { title: 'Create Account' }) %>
+  <%- include('../partials/ambient') %>
+    <div class="auth-wrap">
+      <div class="auth-card" style="position:relative;overflow:hidden">
+        
+        <div class="auth-logo" style="display:flex;flex-direction:column;align-items:center;margin-bottom:22px">
+          <% const pn=settings['panel.name'] || 'SiliconHost' ; %>
+            <div class="silicon-3d-badge-wrap">
+              <div class="silicon-3d-glow"></div>
+              <div class="silicon-3d-box">
+                <img src="/images/silicon-logo.png" alt="SiliconHost 3D Logo" class="silicon-3d-img" />
+              </div>
+            </div>
+            <span style="font-size:24px;font-weight:700;color:var(--gray-50);letter-spacing:-0.03em">
+              <%= pn %>
+            </span>
+            <span style="font-size:12.5px;color:var(--gray-400);margin-top:4px">Deploy your cloud instances in
+              seconds</span>
+        </div>
+
+        
+        <div
+          style="display:flex;gap:6px;background:rgba(255,255,255,0.05);padding:4px;border-radius:9999px;border:1px solid rgba(255,255,255,0.1);margin-bottom:24px">
+          <a href="/login"
+            style="flex:1;text-align:center;padding:8px;border-radius:9999px;font-weight:600;font-size:13px;color:var(--gray-300);text-decoration:none">Sign
+            In</a>
+          <a href="/register" class="btn-primary"
+            style="flex:1;text-align:center;padding:8px;border-radius:9999px;font-weight:600;font-size:13px;text-decoration:none">Sign
+            Up</a>
+        </div>
+
+        <% if (typeof allowed !=='undefined' && !allowed) { %>
+          <div class="alert alert-error mb-3">Registration is currently closed by administrator.</div>
+          <p class="muted text-sm mb-4" style="text-align:center">Please contact support or sign in with an existing
+            account.</p>
+          <a href="/login" class="btn btn-primary btn-block" style="padding:12px;font-weight:700;font-size:14px">
+            Sign In to Account
+          </a>
+          <% } else { %>
+
+            <% if (typeof error !=='undefined' && error) { %>
+              <div class="alert alert-error">
+                <%= error %>
+              </div>
+              <% } %>
+                <% if (typeof success !=='undefined' && success) { %>
+                  <div class="alert alert-success">
+                    <%= success %>
+                  </div>
+                  <% } %>
+
+                    <form method="post" action="/register">
+                      <div class="form-group mb-3">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" name="name" value="<%= typeof name !== 'undefined' ? name : '' %>"
+                          placeholder="John Doe" />
+                      </div>
+                      <div class="form-row mb-3">
+                        <div class="form-group" style="margin:0">
+                          <label for="username">Username</label>
+                          <input type="text" id="username" name="username"
+                            value="<%= typeof username !== 'undefined' ? username : '' %>" placeholder="johndoe"
+                            required />
+                        </div>
+                        <div class="form-group" style="margin:0">
+                          <label for="email">Email</label>
+                          <input type="email" id="email" name="email"
+                            value="<%= typeof email !== 'undefined' ? email : '' %>" placeholder="john@example.com"
+                            required />
+                        </div>
+                      </div>
+                      <div class="form-row mb-3">
+                        <div class="form-group" style="margin:0">
+                          <label for="password">Password</label>
+                          <input type="password" id="password" name="password" placeholder="••••••••" required />
+                        </div>
+                        <div class="form-group" style="margin:0">
+                          <label for="password2">Confirm</label>
+                          <input type="password" id="password2" name="password2" placeholder="••••••••" required />
+                        </div>
+                      </div>
+                      <% if (typeof captcha !== 'undefined' && captcha.enabled) { %>
+                        <div class="form-group mb-3">
+                          <div class="cf-turnstile" data-sitekey="<%= captcha.siteKey %>" data-theme="auto" aria-label="Anti-bot verification"></div>
+                        </div>
+                        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+                      <% } %>
+                      <button type="submit" class="btn btn-primary btn-block mt-4"
+                        style="padding:12px;font-weight:700;font-size:14px">
+                        Create Account
+                      </button>
+                    </form>
+
+                    <div class="auth-foot" style="margin-top:24px;text-align:center">
+                      <span class="muted text-sm">Already have an account?</span> <a href="/login"
+                        style="font-weight:600;color:var(--primary-light);margin-left:4px">Sign In</a>
+                      <div style="margin-top:14px">
+                        <a href="/landing"
+                          style="font-size:12px;color:var(--gray-400);display:inline-flex;align-items:center;gap:4px">
+                          &larr; Back to SiliconHost
+                        </a>
+                      </div>
+                    </div>
+                    <% } %>
+      </div>
+    </div>
+    <%- include('../partials/foot') %>

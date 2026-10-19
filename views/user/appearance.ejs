@@ -1,0 +1,27 @@
+<%- include('../partials/head', { title: 'Appearance', styles: ['/css/theme-gallery.css'] }) %>
+<%- include('../partials/ambient') %><%- include('../partials/topbar') %><%- include('../partials/sidebar') %>
+<main class="main theme-page" id="themePage" data-selected-theme="<%= panelThemeId || 'default' %>">
+  <div class="theme-page-head">
+    <div><p class="theme-eyebrow">PERSONALIZE YOUR WORKSPACE</p><h1>Appearance</h1><p class="muted">Choose Light or Dark. Both themes use tactile neumorphic surfaces, raised controls, and clear status colors.</p></div>
+    <div class="theme-live-status" id="themeStatus" role="status" aria-live="polite"><span class="theme-status-dot"></span><span>Saved theme: <strong id="themeStatusName"><%= themes.find(t => t.id === panelThemeId)?.name || 'Dark' %></strong></span></div>
+  </div>
+  <section class="theme-gallery" aria-label="Light and dark themes">
+    <% themes.forEach((theme) => { %>
+      <article class="theme-card <%= (panelThemeId || 'default') === theme.id ? 'is-selected' : '' %>" data-theme-card="<%= theme.id %>">
+        <div class="theme-card-preview" aria-hidden="true" style="--preview-bg:<%= theme.colors[0] %>;--preview-surface:<%= theme.colors[1] %>;--preview-accent:<%= theme.colors[2] %>;--preview-text:<%= theme.colors[3] %>">
+          <div class="theme-preview-sidebar"><span></span><span></span><span></span><span></span></div>
+          <div class="theme-preview-main"><div class="theme-preview-top"><i></i><i></i></div><div class="theme-preview-title"></div><div class="theme-preview-cards"><i></i><i></i><i></i></div><div class="theme-preview-chart"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="theme-preview-actions"><i></i><i></i><i></i></div></div>
+        </div>
+        <div class="theme-palette" aria-label="Palette colors"><% theme.colors.forEach((color) => { %><span style="background:<%= color %>"></span><% }) %></div>
+        <div class="theme-card-copy"><div><h2><%= theme.name %></h2><span class="theme-mode"><%= theme.mode === 'light' ? 'Light' : 'Dark' %></span></div><p><%= theme.description %></p></div>
+        <div class="theme-card-actions"><button type="button" class="btn btn-outline theme-preview-button" data-theme-preview="<%= theme.id %>" aria-pressed="false">Preview</button><button type="button" class="btn btn-primary theme-apply-button" data-theme-apply="<%= theme.id %>" aria-pressed="<%= (panelThemeId || 'default') === theme.id ? 'true' : 'false' %>"><%= (panelThemeId || 'default') === theme.id ? 'Selected' : 'Apply' %></button></div>
+        <span class="theme-selected-mark" aria-label="Currently selected">✓</span>
+      </article>
+    <% }) %>
+  </section>
+  <div class="theme-preview-bar" id="themePreviewBar" hidden><span><strong id="themePreviewName"></strong> is previewing across the panel. Your saved preference hasn’t changed.</span><button class="btn btn-sm btn-outline" type="button" id="themeCancelPreview">Cancel preview</button></div>
+  <p class="theme-footnote">Your choice is saved to your account and follows you across devices. Errors are red, successful actions are green, and warnings are yellow.</p>
+</main>
+<%- include('../partials/music') %><%- include('../partials/foot') %>
+<script>window.VP_BUILT_IN_THEMES = <%- JSON.stringify(themes.map(({ id, name, mode }) => ({ id, name, mode }))).replace(/</g, '\\u003c') %>;</script>
+<script src="/js/theme-gallery.js" defer></script>

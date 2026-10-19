@@ -1,0 +1,388 @@
+<%- include('../partials/head', { title: 'API & Webhook Manager' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+
+<style>
+.api-subtab-btn {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.api-subtab-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+.api-subtab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+.api-pane {
+  display: none;
+}
+.api-pane.active {
+  display: block;
+}
+</style>
+
+<div class="main">
+  
+  <div class="flex-between mb-4">
+    <div>
+      <div class="muted text-sm mb-1">
+        <a href="/admin" class="muted">Admin</a> / <span style="color:var(--accent);font-weight:600">Integrations &amp; API</span>
+      </div>
+      <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.4px;margin:0;display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="24" height="24" style="color:var(--accent)"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        API &amp; Webhook Manager
+      </h2>
+    </div>
+
+    <div class="flex" style="gap:8px">
+      <button class="btn btn-sm btn-primary" onclick="openModal('modalCreateKey')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+        + Generate API Key
+      </button>
+      <button class="btn btn-sm" onclick="openModal('modalCreateHook')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        + Register Webhook
+      </button>
+    </div>
+  </div>
+
+  
+  <div class="flex mb-4" style="gap:8px;background:rgba(0,0,0,0.25);padding:6px;border-radius:12px;border:1px solid var(--border);width:fit-content">
+    <button class="api-subtab-btn active" onclick="switchApiTab('keys', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      API Keys (<%= keys.length %>)
+    </button>
+    <button class="api-subtab-btn" onclick="switchApiTab('webhooks', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Webhooks (<%= webhooks.length %>)
+    </button>
+    <button class="api-subtab-btn" onclick="switchApiTab('docs', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Documentation (<%= docs.length %>)
+    </button>
+  </div>
+
+  
+  <div id="pane-keys" class="api-pane active">
+    <div class="card">
+      <div class="flex-between mb-3">
+        <span style="font-weight:700">Active REST API Keys</span>
+        <button class="btn btn-sm btn-primary" onclick="openModal('modalCreateKey')">+ Generate API Key</button>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Key Name</th>
+              <th>Token Preview</th>
+              <th>Allowed Scopes</th>
+              <th>Created</th>
+              <th>Last Used</th>
+              <th style="text-align:right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (keys.length === 0) { %>
+              <tr><td colspan="6" class="text-center muted py-4">No API keys generated yet</td></tr>
+            <% } else { %>
+              <% keys.forEach(k => { %>
+                <tr>
+                  <td><b style="color:#fff"><%= k.name %></b></td>
+                  <td class="mono font-semibold" style="color:var(--accent)"><%= k.key_preview %></td>
+                  <td>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                      <% (k.scopes || []).forEach(s => { %>
+                        <span class="pill pill-blue" style="font-size:10.5px"><%= s %></span>
+                      <% }) %>
+                    </div>
+                  </td>
+                  <td class="muted text-sm"><%= new Date(k.created_at).toLocaleDateString() %></td>
+                  <td class="muted text-sm"><%= k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Never' %></td>
+                  <td style="text-align:right">
+                    <button class="btn btn-sm btn-danger" onclick="revokeApiKey(<%= k.id %>)" style="font-size:11px;padding:3px 8px">Revoke</button>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="pane-webhooks" class="api-pane">
+    <div class="card">
+      <div class="flex-between mb-3">
+        <span style="font-weight:700">Registered Outgoing Webhooks</span>
+        <button class="btn btn-sm btn-primary" onclick="openModal('modalCreateHook')">+ Register Webhook</button>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Webhook Name</th>
+              <th>Target URL</th>
+              <th>Subscribed Events</th>
+              <th>Last Delivery</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (webhooks.length === 0) { %>
+              <tr><td colspan="5" class="text-center muted py-4">No outgoing webhooks registered</td></tr>
+            <% } else { %>
+              <% webhooks.forEach(w => { %>
+                <tr>
+                  <td><b style="color:#fff"><%= w.name %></b></td>
+                  <td class="mono text-sm" style="color:#38bdf8"><%= w.target_url %></td>
+                  <td>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                      <% (w.events || []).forEach(ev => { %>
+                        <span class="pill pill-green" style="font-size:10.5px"><%= ev %></span>
+                      <% }) %>
+                    </div>
+                  </td>
+                  <td>
+                    <% if (w.last_delivery) { %>
+                      <span class="pill <%= w.last_delivery.status === 200 ? 'pill-green' : 'pill-red' %>">
+                        HTTP <%= w.last_delivery.status %> (<%= w.last_delivery.duration_ms || 0 %>ms)
+                      </span>
+                    <% } else { %>
+                      <span class="muted text-sm">No events sent</span>
+                    <% } %>
+                  </td>
+                  <td style="text-align:right">
+                    <div class="flex" style="gap:6px;justify-content:flex-end">
+                      <button class="btn btn-sm" onclick="testWebhook(<%= w.id %>)" style="font-size:11px;padding:3px 8px">Test Ping</button>
+                      <button class="btn btn-sm btn-danger" onclick="deleteWebhook(<%= w.id %>)" style="font-size:11px;padding:3px 8px">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="pane-docs" class="api-pane">
+    <div class="card">
+      <div class="card-title mb-3">vPanel Pro RESTful Endpoints Reference</div>
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Endpoint Path</th>
+              <th>Description</th>
+              <th>Required Scope</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% docs.forEach(doc => { %>
+              <tr>
+                <td>
+                  <span class="pill <%= doc.method === 'GET' ? 'pill-blue' : doc.method === 'POST' ? 'pill-green' : 'pill-red' %>" style="font-weight:800;font-size:11px">
+                    <%= doc.method %>
+                  </span>
+                </td>
+                <td class="mono font-semibold" style="color:#fff"><%= doc.endpoint %></td>
+                <td class="muted"><%= doc.description %></td>
+                <td><span class="pill pill-amber mono" style="font-size:11px"><%= doc.scope %></span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalCreateKey" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;backdrop-filter:blur(10px);place-items:center;padding:20px">
+  <div class="card modal-card" style="width:min(480px, 94vw)">
+    <div class="flex-between mb-3" style="border-bottom:1px solid var(--border);padding-bottom:10px">
+      <h3 style="font-size:16px;font-weight:700;margin:0">Generate API Key</h3>
+      <button class="icon-btn" onclick="closeModal('modalCreateKey')">✕</button>
+    </div>
+    <div class="mb-3">
+      <label class="muted text-sm mb-1" style="display:block">Key Identifier Name</label>
+      <input type="text" id="keyName" class="form-control" placeholder="e.g. WHMCS Billing Module" />
+    </div>
+    <div class="mb-4">
+      <label class="muted text-sm mb-2" style="display:block">Select Scopes</label>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="scopes" value="vms:read" checked /> vms:read (View servers &amp; stats)
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="scopes" value="vms:write" /> vms:write (Start, stop, reboot, edit VMs)
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="scopes" value="users:read" /> users:read (List accounts)
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="scopes" value="admin:full" /> admin:full (Superuser administrative scope)
+        </label>
+      </div>
+    </div>
+    <div class="flex-between">
+      <button class="btn btn-sm" onclick="closeModal('modalCreateKey')">Cancel</button>
+      <button class="btn btn-sm btn-primary" onclick="submitCreateKey()">Generate Key</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalCreateHook" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;backdrop-filter:blur(10px);place-items:center;padding:20px">
+  <div class="card modal-card" style="width:min(480px, 94vw)">
+    <div class="flex-between mb-3" style="border-bottom:1px solid var(--border);padding-bottom:10px">
+      <h3 style="font-size:16px;font-weight:700;margin:0">Register Outgoing Webhook</h3>
+      <button class="icon-btn" onclick="closeModal('modalCreateHook')">✕</button>
+    </div>
+    <div class="mb-3">
+      <label class="muted text-sm mb-1" style="display:block">Webhook Name</label>
+      <input type="text" id="hookName" class="form-control" placeholder="e.g. Slack Incident Bot" />
+    </div>
+    <div class="mb-3">
+      <label class="muted text-sm mb-1" style="display:block">Target Endpoint URL</label>
+      <input type="url" id="hookUrl" class="form-control" placeholder="https://api.example.com/webhook" />
+    </div>
+    <div class="mb-4">
+      <label class="muted text-sm mb-1" style="display:block">Secret Key (for HMAC SHA-256 signature)</label>
+      <input type="text" id="hookSecret" class="form-control mono" placeholder="Optional secret string" />
+    </div>
+    <div class="flex-between">
+      <button class="btn btn-sm" onclick="closeModal('modalCreateHook')">Cancel</button>
+      <button class="btn btn-sm btn-primary" onclick="submitCreateHook()">Save Webhook</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchApiTab(tabId, btn) {
+  document.querySelectorAll('.api-subtab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.api-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById(`pane-${tabId}`).classList.add('active');
+}
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'grid';
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
+async function submitCreateKey() {
+  const name = document.getElementById('keyName').value.trim();
+  const checkboxes = document.querySelectorAll('input[name="scopes"]:checked');
+  const scopes = Array.from(checkboxes).map(c => c.value);
+  if (!name) { VP.toast('Enter a name for the API key before creating it.', 'warning'); return; }
+
+  try {
+    const res = await fetch('/admin/api/keys/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, scopes })
+    }).then(r => r.json());
+
+    if (res.ok) {
+      await VP.secretDialog({ title: 'API key generated', intro: 'Copy the token now. It will NOT be displayed again.', secret: res.key.raw_key });
+      location.reload();
+    } else {
+      VP.toast(VP.errorMessage({ message: res.error || 'Failed to create key' }), 'error');
+    }
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function revokeApiKey(id) {
+  if (!await VP.confirmDialog('Revoke this API key? Applications using it will immediately lose access.', { title: 'Revoke API key?', confirmText: 'Revoke key' })) return;
+  try {
+    const res = await fetch('/admin/api/keys/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    }).then(r => r.json());
+    if (res.ok) location.reload();
+    else VP.toast(VP.errorMessage({ message: res.error || 'Failed to revoke key' }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function submitCreateHook() {
+  const name = document.getElementById('hookName').value.trim();
+  const target_url = document.getElementById('hookUrl').value.trim();
+  const secret = document.getElementById('hookSecret').value.trim();
+  if (!name || !target_url) { VP.toast('Enter a webhook name and target URL before saving.', 'warning'); return; }
+
+  try {
+    const res = await fetch('/admin/api/webhooks/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, target_url, secret })
+    }).then(r => r.json());
+    if (res.ok) location.reload();
+    else VP.toast(VP.errorMessage({ message: res.error || 'Failed to create webhook' }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function deleteWebhook(id) {
+  if (!await VP.confirmDialog('Delete this webhook? Delivery to its target URL will stop.', { title: 'Delete webhook?', confirmText: 'Delete webhook' })) return;
+  try {
+    const res = await fetch('/admin/api/webhooks/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    }).then(r => r.json());
+    if (res.ok) location.reload();
+    else VP.toast(VP.errorMessage({ message: res.error || 'Failed to delete webhook' }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function testWebhook(id) {
+  try {
+    const res = await fetch('/admin/api/webhooks/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    }).then(r => r.json());
+    if (res.ok) VP.toast(`Test ping successful! HTTP ${res.status} (${res.duration_ms}ms)`, 'success');
+    else VP.toast(VP.errorMessage({ message: `Test ping failed: ${res.error}` }), 'error');
+    location.reload();
+  } catch (e) {
+    VP.toast(VP.errorMessage(e, 'Webhook test failed. Check the connection and try again.'), 'error');
+  }
+}
+</script>
+
+<%- include('../partials/foot') %>

@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#14171d"/>
+      <stop offset="60%" stop-color="#0a0c0f"/>
+      <stop offset="100%" stop-color="#050608"/>
+    </radialGradient>
+
+    
+    <linearGradient id="substrateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c2027"/>
+      <stop offset="50%" stop-color="#111317"/>
+      <stop offset="100%" stop-color="#0b0d10"/>
+    </linearGradient>
+
+    
+    <linearGradient id="heatSpreader" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2a303c"/>
+      <stop offset="30%" stop-color="#181c22"/>
+      <stop offset="70%" stop-color="#12151b"/>
+      <stop offset="100%" stop-color="#222731"/>
+    </linearGradient>
+
+    
+    <linearGradient id="goldCopper" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#cf8047"/>
+      <stop offset="50%" stop-color="#b15f2c"/>
+      <stop offset="100%" stop-color="#84431a"/>
+    </linearGradient>
+
+    
+    <pattern id="siliconGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(207, 128, 71, 0.08)" stroke-width="1"/>
+      <circle cx="20" cy="20" r="1.5" fill="rgba(255, 255, 255, 0.06)"/>
+    </pattern>
+
+    
+    <pattern id="pcbLines" width="120" height="120" patternUnits="userSpaceOnUse">
+      <path d="M0 60 H40 L60 80 H120 M60 0 V40 L80 60 V120" fill="none" stroke="rgba(255, 255, 255, 0.03)" stroke-width="1.5"/>
+    </pattern>
+  </defs>
+
+  
+  <rect width="1920" height="1080" fill="url(#bgGrad)"/>
+  <rect width="1920" height="1080" fill="url(#pcbLines)"/>
+
+  
+  <g stroke="rgba(207, 128, 71, 0.22)" stroke-width="1.5" fill="none" stroke-linecap="round">
+    
+    <path d="M300 120 L550 120 L650 220 L750 220"/>
+    <path d="M350 80 L600 80 L700 180 L800 180"/>
+    <path d="M1620 120 L1370 120 L1270 220 L1170 220"/>
+    <path d="M1570 80 L1320 80 L1220 180 L1120 180"/>
+    
+    
+    <path d="M150 450 L350 450 L450 550 L580 550"/>
+    <path d="M150 500 L380 500 L480 600 L580 600"/>
+    <path d="M1770 450 L1570 450 L1470 550 L1340 550"/>
+    <path d="M1770 500 L1540 500 L1440 600 L1340 600"/>
+
+    
+    <path d="M400 960 L620 960 L720 860 L800 860"/>
+    <path d="M1520 960 L1300 960 L1200 860 L1120 860"/>
+  </g>
+
+  
+  <g fill="rgba(207, 128, 71, 0.45)">
+    <circle cx="300" cy="120" r="3"/><circle cx="550" cy="120" r="3"/><circle cx="650" cy="220" r="3"/>
+    <circle cx="1620" cy="120" r="3"/><circle cx="1370" cy="120" r="3"/><circle cx="1270" cy="220" r="3"/>
+    <circle cx="350" cy="450" r="3"/><circle cx="450" cy="550" r="3"/>
+    <circle cx="1570" cy="450" r="3"/><circle cx="1470" cy="550" r="3"/>
+    <circle cx="620" cy="960" r="3"/><circle cx="720" cy="860" r="3"/>
+    <circle cx="1300" cy="960" r="3"/><circle cx="1200" cy="860" r="3"/>
+  </g>
+
+  
+  <rect x="580" y="160" width="760" height="760" rx="42" fill="url(#substrateGrad)" stroke="rgba(255, 255, 255, 0.12)" stroke-width="2"/>
+  <rect x="592" y="172" width="736" height="736" rx="34" fill="none" stroke="rgba(207, 128, 71, 0.3)" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+  
+  <g fill="rgba(207, 128, 71, 0.5)">
+    
+    <rect x="640" y="178" width="640" height="4" rx="2"/>
+    <rect x="640" y="898" width="640" height="4" rx="2"/>
+    
+    <rect x="598" y="220" width="4" height="640" rx="2"/>
+    <rect x="1318" y="220" width="4" height="640" rx="2"/>
+  </g>
+
+  
+  <rect x="640" y="220" width="640" height="640" rx="28" fill="url(#heatSpreader)" stroke="rgba(255, 255, 255, 0.18)" stroke-width="2"/>
+  
+  
+  <rect x="670" y="250" width="580" height="580" rx="20" fill="#0d0f14" stroke="rgba(207, 128, 71, 0.2)" stroke-width="1"/>
+  <rect x="670" y="250" width="580" height="580" rx="20" fill="url(#siliconGrid)"/>
+
+  
+  <g fill="#12161e" stroke="rgba(255, 255, 255, 0.08)" stroke-width="1">
+    
+    <rect x="710" y="290" width="110" height="90" rx="8"/>
+    <rect x="840" y="290" width="110" height="90" rx="8"/>
+    <rect x="970" y="290" width="110" height="90" rx="8"/>
+    <rect x="1100" y="290" width="110" height="90" rx="8"/>
+
+    
+    <rect x="710" y="700" width="110" height="90" rx="8"/>
+    <rect x="840" y="700" width="110" height="90" rx="8"/>
+    <rect x="970" y="700" width="110" height="90" rx="8"/>
+    <rect x="1100" y="700" width="110" height="90" rx="8"/>
+  </g>
+
+  
+  <rect x="750" y="410" width="420" height="260" rx="16" fill="#090b0e" stroke="url(#goldCopper)" stroke-width="2"/>
+
+  
+  <g transform="translate(960, 480) scale(1.6)">
+    
+    <path d="M0 -22 C1.2 -10 4.2 -4 16 0 C4.2 4 1.2 10 0 22 C-1.2 10 -4.2 4 -16 0 C-4.2 -4 -1.2 -10 0 -22 Z" fill="url(#goldCopper)"/>
+  </g>
+
+  
+  
+  <text x="960" y="555" text-anchor="middle" font-family="'Onest', sans-serif" font-weight="700" font-size="28" letter-spacing="8" fill="#ffffff">SILICONHOST</text>
+  
+  
+  <text x="960" y="582" text-anchor="middle" font-family="'Onest', sans-serif" font-weight="600" font-size="12" letter-spacing="4" fill="#cf8047">QUANTUM CLOUD ARCHITECTURE &bull; MODEL SH-9950X</text>
+
+  
+  <text x="960" y="612" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="10" letter-spacing="2" fill="rgba(255, 255, 255, 0.5)">
+    128 HIGH-PERFORMANCE KVM CORES &bull; 100G FIBER &bull; NVME GEN4
+  </text>
+  <text x="960" y="632" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-weight="500" font-size="9" letter-spacing="1.5" fill="rgba(207, 128, 71, 0.7)">
+    AUTONOMOUS DDOS SHIELD 3.2 Tbps &bull; AS20473 &bull; FABRIC READY
+  </text>
+
+  
+  <polygon points="650,230 670,230 650,250" fill="url(#goldCopper)"/>
+
+  
+  <g fill="#2e3544" stroke="rgba(255, 255, 255, 0.2)" stroke-width="1">
+    <rect x="710" y="440" width="18" height="8" rx="2"/><rect x="710" y="460" width="18" height="8" rx="2"/><rect x="710" y="480" width="18" height="8" rx="2"/>
+    <rect x="1192" y="440" width="18" height="8" rx="2"/><rect x="1192" y="460" width="18" height="8" rx="2"/><rect x="1192" y="480" width="18" height="8" rx="2"/>
+    <rect x="710" y="590" width="18" height="8" rx="2"/><rect x="710" y="610" width="18" height="8" rx="2"/><rect x="710" y="630" width="18" height="8" rx="2"/>
+    <rect x="1192" y="590" width="18" height="8" rx="2"/><rect x="1192" y="610" width="18" height="8" rx="2"/><rect x="1192" y="630" width="18" height="8" rx="2"/>
+  </g>
+</svg>

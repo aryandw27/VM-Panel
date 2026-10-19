@@ -1,0 +1,113 @@
+<%- include('../partials/head', { title: 'Sign In' }) %>
+  <%- include('../partials/ambient') %>
+    <div class="auth-wrap">
+      <div class="auth-card" style="position:relative;overflow:hidden">
+        
+        <div class="auth-logo" style="display:flex;flex-direction:column;align-items:center;margin-bottom:22px">
+          <% const pn=settings['panel.name'] || 'SiliconHost' ; %>
+            <div class="silicon-3d-badge-wrap">
+              <div class="silicon-3d-glow"></div>
+              <div class="silicon-3d-box">
+                <img src="/images/silicon-logo.png" alt="SiliconHost 3D Logo" class="silicon-3d-img" />
+              </div>
+            </div>
+            <span style="font-size:24px;font-weight:700;color:var(--gray-50);letter-spacing:-0.03em">
+              <%= pn %>
+            </span>
+            <span style="font-size:12.5px;color:var(--gray-400);margin-top:4px">Enter your credentials to access your
+              cloud instances</span>
+        </div>
+
+        
+        <div
+          style="display:flex;gap:6px;background:rgba(255,255,255,0.05);padding:4px;border-radius:9999px;border:1px solid rgba(255,255,255,0.1);margin-bottom:24px">
+          <a href="/login" class="btn-primary"
+            style="flex:1;text-align:center;padding:8px;border-radius:9999px;font-weight:600;font-size:13px;text-decoration:none">Sign
+            In</a>
+          <a href="/register"
+            style="flex:1;text-align:center;padding:8px;border-radius:9999px;font-weight:600;font-size:13px;color:var(--gray-300);text-decoration:none">Sign
+            Up</a>
+        </div>
+
+        <% if (typeof error !=='undefined' && error) { %>
+          <div class="alert alert-error">
+            <%= error %>
+          </div>
+          <% } %>
+            <% if (typeof success !=='undefined' && success) { %>
+              <div class="alert alert-success">
+                <%= success %>
+              </div>
+              <% } %>
+
+                <form method="post" action="/login">
+                  <div class="form-group mb-3">
+                    <label for="username">Username or Email</label>
+                    <input type="text" id="username" name="username"
+                      value="<%= typeof username !== 'undefined' ? username : '' %>" required autofocus
+                      placeholder="Enter your username or email" />
+                  </div>
+                  <div class="form-group mb-3">
+                    <div class="flex-between mb-1">
+                      <label for="password" style="margin:0">Password</label>
+                      <a href="/forgot" style="font-size:12px;color:var(--primary-light)">Forgot password?</a>
+                    </div>
+                    <div style="position:relative">
+                      <input type="password" id="password" name="password" required placeholder="••••••••"
+                        style="padding-right:40px" />
+                      <button type="button" onclick="togglePassVisibility('password', this)"
+                        style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--gray-400);cursor:pointer;padding:4px">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
+                          height="16">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <% if (typeof tfa !=='undefined' && tfa) { %>
+                    <div class="form-group mb-3">
+                      <label for="code">Two-Factor Authenticator Code</label>
+                      <input type="text" id="code" name="code" placeholder="6-digit code" inputmode="numeric"
+                        required />
+                    </div>
+                    <% } %>
+                      <% if (typeof captcha !== 'undefined' && captcha.enabled) { %>
+                        <div class="form-group mb-3">
+                          <div class="cf-turnstile" data-sitekey="<%= captcha.siteKey %>" data-theme="auto" aria-label="Anti-bot verification"></div>
+                        </div>
+                        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+                      <% } %>
+                      <button type="submit" class="btn btn-primary btn-block mt-4"
+                        style="padding:12px;font-size:14px;font-weight:700">
+                        Sign In
+                      </button>
+                </form>
+
+                <div class="auth-foot" style="margin-top:24px;text-align:center">
+                  <span class="muted text-sm">Don't have an account yet?</span> <a href="/register"
+                    style="font-weight:600;color:var(--primary-light);margin-left:4px">Register</a>
+                  <div style="margin-top:14px">
+                    <a href="/landing"
+                      style="font-size:12px;color:var(--gray-400);display:inline-flex;align-items:center;gap:4px">
+                      &larr; Back to SiliconHost
+                    </a>
+                  </div>
+                </div>
+      </div>
+    </div>
+
+    <script>
+      function togglePassVisibility(id, btn) {
+        const inp = document.getElementById(id);
+        if (!inp) return;
+        if (inp.type === 'password') {
+          inp.type = 'text';
+          btn.style.color = 'var(--primary-light)';
+        } else {
+          inp.type = 'password';
+          btn.style.color = 'var(--gray-400)';
+        }
+      }
+    </script>
+    <%- include('../partials/foot') %>

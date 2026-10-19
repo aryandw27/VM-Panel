@@ -1,0 +1,464 @@
+<%- include('../partials/head', { title: 'Network & Firewall' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+
+<style>
+.net-subtab-btn {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.net-subtab-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+.net-subtab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+.net-pane {
+  display: none;
+}
+.net-pane.active {
+  display: block;
+}
+.net-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+.net-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-2px);
+}
+</style>
+
+<div class="main">
+  
+  <div class="flex-between mb-4">
+    <div>
+      <div class="muted text-sm mb-1">
+        <a href="/admin" class="muted">Admin</a> / <span style="color:var(--accent);font-weight:600">Network Architecture</span>
+      </div>
+      <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.4px;margin:0;display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="24" height="24" style="color:var(--accent)"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Network &amp; Firewall
+      </h2>
+    </div>
+
+    <div class="flex" style="gap:8px">
+      <button class="btn btn-sm btn-primary" onclick="openModal('modalAddForward')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+        + Port Forward
+      </button>
+      <button class="btn btn-sm" onclick="openModal('modalAddFirewall')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        + Firewall Rule
+      </button>
+    </div>
+  </div>
+
+  
+  <div class="flex mb-4" style="gap:8px;background:rgba(0,0,0,0.25);padding:6px;border-radius:12px;border:1px solid var(--border);width:fit-content">
+    <button class="net-subtab-btn active" onclick="switchNetTab('firewall', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Firewall Rules (<%= rules.length %>)
+    </button>
+    <button class="net-subtab-btn" onclick="switchNetTab('forwards', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+      NAT Port Forwards (<%= forwards.length %>)
+    </button>
+    <button class="net-subtab-btn" onclick="switchNetTab('pools', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+      IP Pools &amp; Subnets (<%= pools.length %>)
+    </button>
+    <button class="net-subtab-btn" onclick="switchNetTab('ifaces', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+      Bridges &amp; NICs (<%= ifaces.length %>)
+    </button>
+  </div>
+
+  
+  <div id="pane-firewall" class="net-pane active">
+    <div class="card">
+      <div class="flex-between mb-3">
+        <span style="font-weight:700">Virtual Firewall Filtering Rules</span>
+        <button class="btn btn-sm btn-primary" onclick="openModal('modalAddFirewall')">+ Add Firewall Rule</button>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Rule Name</th>
+              <th>Action</th>
+              <th>Direction</th>
+              <th>Protocol</th>
+              <th>Port</th>
+              <th>Source</th>
+              <th>Status</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rules.forEach(rule => { %>
+              <tr>
+                <td><b style="color:#fff"><%= rule.name %></b></td>
+                <td>
+                  <span class="pill <%= rule.action === 'ALLOW' ? 'pill-green' : 'pill-red' %>" style="font-weight:700">
+                    <%= rule.action %>
+                  </span>
+                </td>
+                <td><span class="pill pill-blue"><%= rule.direction.toUpperCase() %></span></td>
+                <td class="mono"><%= rule.protocol %></td>
+                <td class="mono font-semibold" style="color:#38bdf8"><%= rule.port %></td>
+                <td class="mono muted"><%= rule.source %></td>
+                <td>
+                  <span class="pill <%= rule.active ? 'pill-green' : 'pill-amber' %>">
+                    <%= rule.active ? 'Active' : 'Disabled' %>
+                  </span>
+                </td>
+                <td style="text-align:right">
+                  <div class="flex" style="gap:6px;justify-content:flex-end">
+                    <button class="btn btn-sm" onclick="toggleFirewallRule(<%= rule.id %>, <%= !rule.active %>)" style="font-size:11px;padding:3px 8px">
+                      <%= rule.active ? 'Disable' : 'Enable' %>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteFirewallRule(<%= rule.id %>)" style="font-size:11px;padding:3px 8px">Delete</button>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="pane-forwards" class="net-pane">
+    <div class="card">
+      <div class="flex-between mb-3">
+        <span style="font-weight:700">NAT &amp; Port Forwarding Table</span>
+        <button class="btn btn-sm btn-primary" onclick="openModal('modalAddForward')">+ Add Port Forward</button>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Rule Label</th>
+              <th>Host Port</th>
+              <th>Target VM / IP</th>
+              <th>Internal Port</th>
+              <th>Protocol</th>
+              <th style="text-align:right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (forwards.length === 0) { %>
+              <tr><td colspan="6" class="text-center muted py-4">No port forwarding rules configured</td></tr>
+            <% } else { %>
+              <% forwards.forEach(f => { %>
+                <tr>
+                  <td><b style="color:#fff"><%= f.name %></b></td>
+                  <td class="mono font-semibold" style="color:#34d399">:<%= f.host_port %></td>
+                  <td class="mono"><%= f.vm_ip %></td>
+                  <td class="mono font-semibold" style="color:#38bdf8">:<%= f.vm_port %></td>
+                  <td><span class="pill pill-blue"><%= f.protocol %></span></td>
+                  <td style="text-align:right">
+                    <button class="btn btn-sm btn-danger" onclick="deletePortForward(<%= f.id %>)" style="font-size:11px;padding:3px 8px">Delete</button>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="pane-pools" class="net-pane">
+    <div class="grid grid-2 mb-4">
+      <% pools.forEach(pool => { %>
+        <div class="net-card">
+          <div class="flex-between mb-2">
+            <span style="font-size:16px;font-weight:700;color:#fff"><%= pool.name %></span>
+            <span class="pill pill-green"><%= pool.bridge %></span>
+          </div>
+          <div class="mono font-semibold mb-2" style="font-size:15px;color:var(--accent)"><%= pool.subnet %></div>
+          <div class="muted text-sm mb-3" style="display:flex;gap:12px">
+            <span>Gateway: <b class="mono" style="color:#fff"><%= pool.gateway %></b></span>
+            <span>DNS: <b class="mono" style="color:#fff"><%= pool.dns %></b></span>
+          </div>
+
+          <div class="flex-between text-sm">
+            <span class="muted">Address Utilization</span>
+            <span class="font-semibold"><%= pool.allocatedCount %> Leased / <%= pool.freeCount %> Available</span>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.08);border-radius:999px;height:8px;overflow:hidden;margin:10px 0">
+            <div style="height:100%;border-radius:999px;background:var(--accent);width:<%= pool.utilizationPercent %>%;transition:width 0.3s"></div>
+          </div>
+
+          <div class="flex-between text-sm muted mt-2" style="font-size:11.5px">
+            <span>Pool Range: <b class="mono"><%= pool.range_start %> - <%= pool.range_end %></b></span>
+            <% if (pool.id !== 1) { %>
+              <button class="btn btn-sm btn-danger" onclick="deleteIpPool(<%= pool.id %>)" style="padding:2px 8px;font-size:11px">Delete</button>
+            <% } else { %>
+              <span class="pill pill-blue" style="font-size:10px">Default Subnet</span>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  
+  <div id="pane-ifaces" class="net-pane">
+    <div class="card">
+      <div class="card-title mb-3">Host Network Interfaces &amp; Linux Bridges</div>
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Interface</th>
+              <th>Type</th>
+              <th>IP Address</th>
+              <th>Netmask</th>
+              <th>MAC Address</th>
+              <th>Link Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% ifaces.forEach(iface => { %>
+              <tr>
+                <td class="mono font-semibold" style="color:#fff"><%= iface.name %></td>
+                <td><span class="pill pill-blue"><%= iface.type %></span></td>
+                <td class="mono font-semibold" style="color:#34d399"><%= iface.ip %></td>
+                <td class="mono muted"><%= iface.netmask %></td>
+                <td class="mono muted" style="font-size:11px"><%= iface.mac %></td>
+                <td><span class="pill pill-green"><%= iface.status %></span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalAddForward" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;backdrop-filter:blur(10px);place-items:center;padding:20px">
+  <div class="card modal-card" style="width:min(480px, 94vw)">
+    <div class="flex-between mb-3" style="border-bottom:1px solid var(--border);padding-bottom:10px">
+      <h3 style="font-size:16px;font-weight:700;margin:0">Create NAT Port Forward</h3>
+      <button class="icon-btn" onclick="closeModal('modalAddForward')">✕</button>
+    </div>
+    <div class="mb-3">
+      <label class="muted text-sm mb-1" style="display:block">Rule Name</label>
+      <input type="text" id="fwdName" class="form-control" placeholder="e.g. Web Server HTTP" />
+    </div>
+    <div class="mb-3" style="display:flex;gap:10px">
+      <div style="flex:1">
+        <label class="muted text-sm mb-1" style="display:block">Host Port</label>
+        <input type="number" id="fwdHostPort" class="form-control" placeholder="8080" />
+      </div>
+      <div style="flex:1">
+        <label class="muted text-sm mb-1" style="display:block">Protocol</label>
+        <select id="fwdProto" class="form-control">
+          <option value="TCP">TCP</option>
+          <option value="UDP">UDP</option>
+        </select>
+      </div>
+    </div>
+    <div class="mb-4" style="display:flex;gap:10px">
+      <div style="flex:2">
+        <label class="muted text-sm mb-1" style="display:block">Destination VM IP</label>
+        <input type="text" id="fwdVmIp" class="form-control mono" placeholder="10.10.0.15" />
+      </div>
+      <div style="flex:1">
+        <label class="muted text-sm mb-1" style="display:block">VM Port</label>
+        <input type="number" id="fwdVmPort" class="form-control" placeholder="80" />
+      </div>
+    </div>
+    <div class="flex-between">
+      <button class="btn btn-sm" onclick="closeModal('modalAddForward')">Cancel</button>
+      <button class="btn btn-sm btn-primary" onclick="submitAddForward()">Save Forward Rule</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalAddFirewall" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;backdrop-filter:blur(10px);place-items:center;padding:20px">
+  <div class="card modal-card" style="width:min(500px, 94vw)">
+    <div class="flex-between mb-3" style="border-bottom:1px solid var(--border);padding-bottom:10px">
+      <h3 style="font-size:16px;font-weight:700;margin:0">Create Virtual Firewall Rule</h3>
+      <button class="icon-btn" onclick="closeModal('modalAddFirewall')">✕</button>
+    </div>
+    <div class="mb-3">
+      <label class="muted text-sm mb-1" style="display:block">Rule Name</label>
+      <input type="text" id="fwName" class="form-control" placeholder="e.g. Block Port 25 SMTP" />
+    </div>
+    <div class="mb-3" style="display:flex;gap:10px">
+      <div style="flex:1">
+        <label class="muted text-sm mb-1" style="display:block">Action</label>
+        <select id="fwAction" class="form-control">
+          <option value="ALLOW">ALLOW</option>
+          <option value="DROP">DROP</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label class="muted text-sm mb-1" style="display:block">Direction</label>
+        <select id="fwDirection" class="form-control">
+          <option value="inbound">Inbound</option>
+          <option value="outbound">Outbound</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label class="muted text-sm mb-1" style="display:block">Protocol</label>
+        <select id="fwProto" class="form-control">
+          <option value="TCP">TCP</option>
+          <option value="UDP">UDP</option>
+          <option value="ICMP">ICMP</option>
+          <option value="ANY">ANY</option>
+        </select>
+      </div>
+    </div>
+    <div class="mb-4" style="display:flex;gap:10px">
+      <div style="flex:2">
+        <label class="muted text-sm mb-1" style="display:block">Source IP / CIDR</label>
+        <input type="text" id="fwSource" class="form-control mono" placeholder="0.0.0.0/0" value="0.0.0.0/0" />
+      </div>
+      <div style="flex:1">
+        <label class="muted text-sm mb-1" style="display:block">Port Range</label>
+        <input type="text" id="fwPort" class="form-control mono" placeholder="e.g. 25 or ANY" value="25" />
+      </div>
+    </div>
+    <div class="flex-between">
+      <button class="btn btn-sm" onclick="closeModal('modalAddFirewall')">Cancel</button>
+      <button class="btn btn-sm btn-primary" onclick="submitAddFirewall()">Create Rule</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchNetTab(tabId, btn) {
+  document.querySelectorAll('.net-subtab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.net-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById(`pane-${tabId}`).classList.add('active');
+}
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'grid';
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
+async function submitAddForward() {
+  const name = document.getElementById('fwdName').value.trim();
+  const host_port = document.getElementById('fwdHostPort').value;
+  const protocol = document.getElementById('fwdProto').value;
+  const vm_ip = document.getElementById('fwdVmIp').value.trim();
+  const vm_port = document.getElementById('fwdVmPort').value;
+  if (!name || !host_port || !vm_port) { VP.toast('Fill in every port-forward field before saving.', 'warning'); return; }
+
+  try {
+    const res = await fetch('/admin/network/api/forwards/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, host_port, protocol, vm_ip, vm_port })
+    }).then(r => r.json());
+    if (res.ok) location.reload();
+    else VP.toast(VP.errorMessage({ message: res.error || 'Failed to create port forward' }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function deletePortForward(id) {
+  if (!await VP.confirmDialog('Delete this port-forward rule? Existing connections through it will stop.', { title: 'Delete port forward?', confirmText: 'Delete forward' })) return;
+  try {
+    const res = await fetch('/admin/network/api/forwards/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    }).then(r => r.json());
+    if (res.ok) location.reload();
+    else VP.toast(VP.errorMessage({ message: res.error || 'Failed to delete forward' }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function submitAddFirewall() {
+  const name = document.getElementById('fwName').value.trim();
+  const action = document.getElementById('fwAction').value;
+  const direction = document.getElementById('fwDirection').value;
+  const protocol = document.getElementById('fwProto').value;
+  const source = document.getElementById('fwSource').value.trim();
+  const port = document.getElementById('fwPort').value.trim();
+  if (!name || !port) { VP.toast('Enter a rule name and port before saving.', 'warning'); return; }
+
+  try {
+    const res = await fetch('/admin/network/api/firewall/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, action, direction, protocol, source, port })
+    }).then(r => r.json());
+    if (res.ok) location.reload();
+    else VP.toast(VP.errorMessage({ message: res.error || 'Failed to create firewall rule' }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function toggleFirewallRule(id, active) {
+  try {
+    const res = await fetch('/admin/network/api/firewall/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, active })
+    }).then(r => r.json());
+    if (res.ok) location.reload();
+    else VP.toast(VP.errorMessage({ message: res.error || 'Failed to update rule' }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function deleteFirewallRule(id) {
+  if (!await VP.confirmDialog('Delete this firewall rule? Traffic matching it will no longer be filtered.', { title: 'Delete firewall rule?', confirmText: 'Delete rule' })) return;
+  try {
+    const res = await fetch('/admin/network/api/firewall/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    }).then(r => r.json());
+    if (res.ok) location.reload();
+    else VP.toast(VP.errorMessage({ message: res.error || 'Failed to delete rule' }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+</script>
+
+<%- include('../partials/foot') %>

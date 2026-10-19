@@ -1,0 +1,253 @@
+<%- include('../partials/head', { title: 'Plugins & Extensions' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+
+<style>
+.plugin-card {
+  background: var(--neu-surface, #0e1117);
+  border: var(--neu-border, 1px solid var(--border));
+  border-radius: var(--radius-card, 16px);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: var(--neu-raised);
+  transition: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.plugin-card:hover {
+  border-color: rgba(207, 128, 71, 0.4);
+  transform: translateY(-2px);
+  box-shadow: var(--neu-raised-hover);
+}
+[data-theme="light"] .plugin-card {
+  background: #ffffff;
+  border: 1px solid #e6e5e2;
+  box-shadow: var(--neu-raised);
+}
+[data-theme="light"] .plugin-card:hover {
+  border-color: var(--accent);
+}
+.plugin-events-box {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+[data-theme="light"] .plugin-events-box {
+  background: #f6f5f2;
+  border: 1px solid #e6e5e2;
+}
+</style>
+
+<div class="main">
+  
+  <div class="flex-between mb-4">
+    <div>
+      <div class="muted text-sm mb-1">
+        <a href="/admin" class="muted">Admin</a> / <span style="color:var(--accent);font-weight:600">Ecosystem &amp; Plugins</span>
+      </div>
+      <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.4px;margin:0;display:flex;align-items:center;gap:10px;color:var(--gray-50)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="24" height="24" style="color:var(--accent)"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        Plugins &amp; Extensions
+      </h2>
+    </div>
+  </div>
+
+  
+  <div class="mb-5">
+    <div class="card-title mb-3" style="font-size:16px;font-weight:700;color:var(--gray-50)">Notification &amp; Event Hook Plugins</div>
+    <div class="grid grid-3 mb-4">
+      <% plugins.forEach(plugin => { %>
+        <div class="plugin-card">
+          <div>
+            <div class="flex-between mb-2">
+              <h3 style="font-size:16px;font-weight:700;color:var(--gray-50);margin:0"><%= plugin.name %></h3>
+              <span class="pill <%= plugin.enabled ? 'pill-green' : 'pill-amber' %>" style="font-weight:700;font-size:10.5px">
+                <%= plugin.enabled ? 'ENABLED' : 'DISABLED' %>
+              </span>
+            </div>
+            <p class="muted text-sm mb-3" style="min-height:38px;color:var(--gray-300);line-height:1.45"><%= plugin.description %></p>
+
+            <div class="plugin-events-box">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--gray-400);margin-bottom:8px">Event Subscriptions:</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <% (plugin.events || []).forEach(ev => { %>
+                  <span class="pill pill-blue mono font-bold" style="font-size:10.5px;padding:2px 8px"><%= ev %></span>
+                <% }) %>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-between pt-2" style="border-top:1px solid var(--border)">
+            <button class="btn btn-sm btn-outline" onclick="testPlugin('<%= plugin.id %>')">Test Ping</button>
+            <button class="btn btn-sm btn-primary" onclick="openPluginConfig('<%= plugin.id %>')">Configure</button>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  
+  <div>
+    <div class="card-title mb-3" style="font-size:16px;font-weight:700;color:var(--gray-50)">Installed Core Virtualization Modules</div>
+    <div class="grid grid-3">
+      <% modules.forEach(mod => { %>
+        <div class="card" style="padding:20px;display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div class="flex-between mb-2">
+              <span style="font-weight:700;color:var(--gray-50);font-size:15px"><%= mod.name %></span>
+              <span class="pill pill-green font-bold" style="font-size:10.5px">v<%= mod.version %></span>
+            </div>
+            <div class="muted text-sm mb-2" style="color:var(--gray-300);line-height:1.45"><%= mod.description %></div>
+          </div>
+          <div class="flex-between mt-3" style="border-top:1px solid var(--border);padding-top:10px">
+            <span class="mono muted" style="font-size:11px;color:var(--gray-400)"><%= mod.category %></span>
+            <a href="<%= mod.route %>" class="btn btn-sm btn-outline" style="font-size:11px;padding:4px 10px">Open Module →</a>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalPluginConfig" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;backdrop-filter:blur(10px);place-items:center;padding:20px">
+  <div class="card modal-card" style="width:min(520px, 94vw)">
+    <div class="flex-between mb-3" style="border-bottom:1px solid var(--border);padding-bottom:10px">
+      <h3 style="font-size:16px;font-weight:700;margin:0" id="pluginConfigTitle">Configure Plugin</h3>
+      <button class="icon-btn" onclick="closeModal('modalPluginConfig')">✕</button>
+    </div>
+
+    <div class="mb-3">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="pluginEnabled" /> Enable Plugin Dispatcher
+      </label>
+    </div>
+
+    <div id="discordFields" style="display:none">
+      <div class="mb-3">
+        <label class="muted text-sm mb-1" style="display:block">Discord Webhook URL</label>
+        <input type="url" id="discordWebhookUrl" class="form-control" placeholder="https://discord.com/api/webhooks/..." />
+      </div>
+    </div>
+
+    <div id="telegramFields" style="display:none">
+      <div class="mb-3">
+        <label class="muted text-sm mb-1" style="display:block">Telegram Bot Token</label>
+        <input type="text" id="telegramBotToken" class="form-control mono" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11" />
+      </div>
+      <div class="mb-3">
+        <label class="muted text-sm mb-1" style="display:block">Target Chat ID</label>
+        <input type="text" id="telegramChatId" class="form-control mono" placeholder="-1001234567890" />
+      </div>
+    </div>
+
+    <div id="webhookFields" style="display:none">
+      <div class="mb-3">
+        <label class="muted text-sm mb-1" style="display:block">Target Webhook Endpoint</label>
+        <input type="url" id="genericEndpoint" class="form-control" placeholder="https://api.domain.com/vpanel-hook" />
+      </div>
+      <div class="mb-3">
+        <label class="muted text-sm mb-1" style="display:block">Secret Key</label>
+        <input type="text" id="genericSecret" class="form-control mono" placeholder="HMAC Secret Key" />
+      </div>
+    </div>
+
+    <div class="flex-between mt-4">
+      <button class="btn btn-sm" onclick="closeModal('modalPluginConfig')">Cancel</button>
+      <button class="btn btn-sm btn-primary" onclick="submitPluginConfig()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentEditingPlugin = null;
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'grid';
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
+async function openPluginConfig(pluginId) {
+  currentEditingPlugin = pluginId;
+  document.getElementById('discordFields').style.display = pluginId === 'discord' ? 'block' : 'none';
+  document.getElementById('telegramFields').style.display = pluginId === 'telegram' ? 'block' : 'none';
+  document.getElementById('webhookFields').style.display = pluginId === 'webhook' ? 'block' : 'none';
+
+  try {
+    const res = await fetch('/admin/plugins/api/plugins').then(r => r.json());
+    if (res.ok && res.plugins) {
+      const p = res.plugins.find(x => x.id === pluginId);
+      if (p) {
+        document.getElementById('pluginConfigTitle').textContent = `Configure ${p.name}`;
+        document.getElementById('pluginEnabled').checked = Boolean(p.enabled);
+        if (pluginId === 'discord') {
+          document.getElementById('discordWebhookUrl').value = p.webhook_url || '';
+        } else if (pluginId === 'telegram') {
+          document.getElementById('telegramBotToken').value = p.bot_token || '';
+          document.getElementById('telegramChatId').value = p.chat_id || '';
+        } else if (pluginId === 'webhook') {
+          document.getElementById('genericEndpoint').value = p.endpoint || '';
+          document.getElementById('genericSecret').value = p.secret || '';
+        }
+      }
+    }
+    openModal('modalPluginConfig');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e, 'Plugin failed to load.'), 'error');
+  }
+}
+
+async function submitPluginConfig() {
+  if (!currentEditingPlugin) return;
+  const enabled = document.getElementById('pluginEnabled').checked;
+  const payload = { enabled };
+
+  if (currentEditingPlugin === 'discord') {
+    payload.webhook_url = document.getElementById('discordWebhookUrl').value.trim();
+  } else if (currentEditingPlugin === 'telegram') {
+    payload.bot_token = document.getElementById('telegramBotToken').value.trim();
+    payload.chat_id = document.getElementById('telegramChatId').value.trim();
+  } else if (currentEditingPlugin === 'webhook') {
+    payload.endpoint = document.getElementById('genericEndpoint').value.trim();
+    payload.secret = document.getElementById('genericSecret').value.trim();
+  }
+
+  try {
+    const res = await fetch(`/admin/plugins/api/plugins/${currentEditingPlugin}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    if (res.ok) {
+      VP.toast('Plugin configuration saved.', 'success');
+      location.reload();
+    } else {
+      VP.toast(VP.errorMessage({ message: res.error || 'Failed to update plugin' }), 'error');
+    }
+  } catch (e) {
+    VP.toast(VP.errorMessage(e), 'error');
+  }
+}
+
+async function testPlugin(id) {
+  try {
+    const res = await fetch(`/admin/plugins/api/plugins/${id}/test`, {
+      method: 'POST'
+    }).then(r => r.json());
+    if (res.ok) VP.toast(res.message || 'Test alert dispatched successfully.', 'success');
+    else VP.toast(VP.errorMessage({ message: 'Test failed: ' + res.error }), 'error');
+  } catch (e) {
+    VP.toast(VP.errorMessage(e, 'Plugin test failed. Try again.'), 'error');
+  }
+}
+</script>
+
+<%- include('../partials/foot') %>

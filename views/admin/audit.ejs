@@ -1,0 +1,205 @@
+<%- include('../partials/head', { title: 'Audit & Security Center' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+
+<style>
+.audit-subtab-btn {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.audit-subtab-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+.audit-subtab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+.audit-pane {
+  display: none;
+}
+.audit-pane.active {
+  display: block;
+}
+</style>
+
+<div class="main">
+  
+  <div class="flex-between mb-4">
+    <div>
+      <div class="muted text-sm mb-1">
+        <a href="/admin" class="muted">Admin</a> / <span style="color:var(--accent);font-weight:600">Compliance &amp; Security</span>
+      </div>
+      <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.4px;margin:0;display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="24" height="24" style="color:var(--accent)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Audit &amp; Security Center
+      </h2>
+    </div>
+
+    <div>
+      <button class="btn btn-sm" onclick="location.reload()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        Refresh Audit Log
+      </button>
+    </div>
+  </div>
+
+  
+  <div class="flex mb-4" style="gap:8px;background:rgba(0,0,0,0.25);padding:6px;border-radius:12px;border:1px solid var(--border);width:fit-content">
+    <button class="audit-subtab-btn active" onclick="switchAuditTab('timeline', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Unified Event Timeline (<%= timeline.length %>)
+    </button>
+    <button class="audit-subtab-btn" onclick="switchAuditTab('logins', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+      Login History (<%= loginHistory.length %>)
+    </button>
+    <button class="audit-subtab-btn" onclick="switchAuditTab('incidents', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Security Incidents (<%= incidents.length %>)
+    </button>
+  </div>
+
+  
+  <div id="pane-timeline" class="audit-pane active">
+    <div class="card">
+      <div class="card-title mb-3">System &amp; Resource Operations Timeline</div>
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Event Action</th>
+              <th>Origin IP</th>
+              <th>Details / Payload</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (timeline.length === 0) { %>
+              <tr><td colspan="4" class="text-center muted py-4">No audit events logged yet</td></tr>
+            <% } else { %>
+              <% timeline.forEach(ev => { %>
+                <tr>
+                  <td class="muted text-sm mono" style="white-space:nowrap"><%= ev.formattedTime %></td>
+                  <td>
+                    <span class="pill pill-blue font-semibold"><%= ev.event %></span>
+                  </td>
+                  <td class="mono font-semibold" style="color:#38bdf8"><%= ev.ip || '127.0.0.1' %></td>
+                  <td class="mono text-sm" style="max-width:480px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                    <%= typeof ev.payload === 'object' ? JSON.stringify(ev.payload) : ev.payload %>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="pane-logins" class="audit-pane">
+    <div class="card">
+      <div class="card-title mb-3">Authentication &amp; Session Attempts</div>
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Username</th>
+              <th>Outcome</th>
+              <th>Client IP</th>
+              <th>Auth Method</th>
+              <th>User Agent</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (loginHistory.length === 0) { %>
+              <tr><td colspan="6" class="text-center muted py-4">No login history records</td></tr>
+            <% } else { %>
+              <% loginHistory.forEach(l => { %>
+                <tr>
+                  <td class="muted text-sm mono" style="white-space:nowrap"><%= l.formattedTime %></td>
+                  <td><b style="color:#fff"><%= l.username %></b></td>
+                  <td>
+                    <span class="pill <%= l.success ? 'pill-green' : 'pill-red' %>" style="font-weight:700">
+                      <%= l.success ? 'SUCCESS' : 'FAILED' %>
+                    </span>
+                  </td>
+                  <td class="mono font-semibold" style="color:#38bdf8"><%= l.ip %></td>
+                  <td class="muted"><%= l.method %></td>
+                  <td class="muted text-sm" style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="<%= l.user_agent %>">
+                    <%= l.user_agent %>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="pane-incidents" class="audit-pane">
+    <div class="card">
+      <div class="card-title mb-3">Flagged Security Events &amp; Anomalies</div>
+      <div style="overflow-x:auto">
+        <table class="table" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Incident Type</th>
+              <th>Severity</th>
+              <th>Incident Description</th>
+              <th>Source IP</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (incidents.length === 0) { %>
+              <tr><td colspan="5" class="text-center py-4" style="color:#34d399">✓ No security incidents detected. System is secure.</td></tr>
+            <% } else { %>
+              <% incidents.forEach(inc => { %>
+                <tr>
+                  <td><b style="color:#fff"><%= inc.type %></b></td>
+                  <td>
+                    <span class="pill <%= inc.severity === 'HIGH' ? 'pill-red' : 'pill-amber' %>" style="font-weight:800;font-size:11px">
+                      <%= inc.severity %>
+                    </span>
+                  </td>
+                  <td style="color:#f87171"><%= inc.details %></td>
+                  <td class="mono font-semibold"><%= inc.ip || '127.0.0.1' %></td>
+                  <td class="muted text-sm mono"><%= new Date(inc.timestamp).toLocaleString() %></td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchAuditTab(tabId, btn) {
+  document.querySelectorAll('.audit-subtab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.audit-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById(`pane-${tabId}`).classList.add('active');
+}
+</script>
+
+<%- include('../partials/foot') %>

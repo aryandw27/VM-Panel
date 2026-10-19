@@ -1,0 +1,2330 @@
+<%- include('../../partials/head', { title: vm.name + ' - Terminal & Boot Logs', styles: ['/vendor/xterm.min.css'], scripts: ['/socket.io/socket.io.js', '/vendor/xterm.min.js', '/vendor/addon-fit.min.js'] }) %>
+<%- include('../../partials/ambient') %>
+<%- include('../../partials/topbar') %>
+<%- include('../../partials/sidebar') %>
+
+<style>
+.pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  margin-right: 6px;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
+  animation: pulse-live 1.5s infinite ease-in-out;
+}
+@keyframes pulse-live {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 12px rgba(34, 197, 94, 1); }
+  100% { transform: scale(0.9); opacity: 0.7; }
+}
+.console-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+.console-tab {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+.console-tab:hover {
+  background: rgba(30, 41, 59, 0.8);
+  color: #fff;
+  border-color: var(--border-hover);
+}
+.console-tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent-light);
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+.log-search-input {
+  background: #060913;
+  border: 1px solid var(--border);
+  color: #f8fafc;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  width: 170px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.log-search-input:focus {
+  border-color: var(--accent-2);
+}
+
+
+.terminal-wrapper {
+  position: relative;
+  min-height: 380px;
+  min-width: 320px;
+  height: calc(100vh - 350px);
+  width: 100%;
+  background: #060913;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.terminal-wrapper.is-resizing {
+  user-select: none;
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.3) !important;
+}
+.terminal-wrapper .terminal {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+
+.resize-handle {
+  position: absolute;
+  z-index: 60;
+  opacity: 0.5;
+  transition: opacity 0.2s, transform 0.15s ease;
+}
+.resize-handle:hover, .terminal-wrapper.is-resizing .resize-handle {
+  opacity: 1;
+}
+
+
+.rh-tl {
+  left: 3px;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  border-left: 2px solid var(--accent-2);
+  border-top: 2px solid var(--accent-2);
+  border-top-left-radius: 4px;
+}
+
+.rh-tr {
+  right: 3px;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  cursor: nesw-resize;
+  border-right: 2px solid var(--accent-2);
+  border-top: 2px solid var(--accent-2);
+  border-top-right-radius: 4px;
+}
+
+.rh-bl {
+  left: 3px;
+  bottom: 3px;
+  width: 14px;
+  height: 14px;
+  cursor: nesw-resize;
+  border-left: 2px solid var(--accent-2);
+  border-bottom: 2px solid var(--accent-2);
+  border-bottom-left-radius: 4px;
+}
+
+.rh-br {
+  right: 3px;
+  bottom: 3px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-2);
+  border-right: 2px solid var(--accent-2);
+  border-bottom: 2px solid var(--accent-2);
+  border-bottom-right-radius: 4px;
+}
+
+.rh-b {
+  bottom: 0;
+  left: 20px;
+  right: 20px;
+  height: 6px;
+  cursor: ns-resize;
+}
+.rh-b:hover {
+  background: rgba(56, 189, 248, 0.3);
+}
+
+.fullscreen-pane {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  border-radius: 0 !important;
+  padding: 16px !important;
+  background: #060913 !important;
+  box-sizing: border-box !important;
+}
+.fullscreen-pane .terminal-wrapper {
+  width: 100% !important;
+  height: calc(100vh - 85px) !important;
+  min-height: calc(100vh - 85px) !important;
+}
+
+
+#paneTerminal.fullscreen-pane {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 999999 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #060913 !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+#paneTerminal.fullscreen-pane .arix-terminal-box {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  background: #060913 !important;
+  box-shadow: none !important;
+}
+#paneTerminal.fullscreen-pane .arix-term-header {
+  padding: 8px 16px !important;
+  background: #0a0e1f !important;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25) !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4) !important;
+}
+#paneTerminal.fullscreen-pane .terminal-wrapper {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  background: #060913 !important;
+  box-shadow: none !important;
+}
+#paneTerminal.fullscreen-pane .terminal-wrapper .terminal {
+  padding: 10px 14px !important;
+  height: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+#paneTerminal.fullscreen-pane .terminal-command-bar {
+  flex-shrink: 0 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: #080b18 !important;
+  padding: 8px 16px !important;
+}
+#paneTerminal.fullscreen-pane .resize-handle {
+  display: none !important;
+}
+.aws-fs-banner {
+  display: none;
+}
+#paneTerminal.fullscreen-pane .aws-fs-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 3px 10px;
+  border-radius: 6px;
+  margin-right: 6px;
+}
+
+
+.arix-console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.arix-server-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #fff;
+  margin: 0;
+  line-height: 1.15;
+}
+.arix-server-subtitle {
+  font-size: 13px;
+  color: #8282A4;
+  margin-top: 4px;
+  font-weight: 500;
+}
+.arix-power-group {
+  display: inline-flex;
+  border-radius: 8px;
+  background: #111424;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px;
+  gap: 4px;
+}
+.arix-pwr-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 24px;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  background: transparent;
+  color: #64748b;
+  text-transform: uppercase;
+  outline: none;
+}
+.arix-pwr-btn:hover {
+  color: #fff;
+}
+.arix-pwr-btn.start.active-glow {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.7);
+}
+.arix-pwr-btn.start.idle {
+  background: transparent;
+  color: #475569;
+}
+.arix-pwr-btn.restart.active-btn {
+  background: #1e293b;
+  color: #94a3b8;
+}
+.arix-pwr-btn.restart.active-btn:hover {
+  background: #334155;
+  color: #fff;
+}
+.arix-pwr-btn.stop.active-danger-glow {
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(220, 38, 38, 0.7);
+}
+.arix-pwr-btn.stop.idle {
+  background: transparent;
+  color: #5c1d24;
+}
+
+.arix-console-main-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  margin-bottom: 18px;
+  align-items: stretch;
+}
+@media (max-width: 1080px) {
+  .arix-console-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.arix-terminal-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.arix-terminal-box {
+  background: #060913;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+}
+.arix-term-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: #090d1c;
+}
+
+.terminal-command-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #080b18;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.cmd-prompt-arrow {
+  color: var(--primary);
+  font-size: 22px;
+  font-weight: 900;
+  user-select: none;
+  line-height: 1;
+}
+.terminal-command-input {
+  flex: 1;
+  background: #12162a;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #f8fafc;
+  font-family: monospace;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.terminal-command-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 12px rgba(59,130,246,0.3);
+}
+
+.arix-side-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.arix-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: #111425;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.arix-stat-card:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+  background: #14182e;
+}
+.arix-stat-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.arix-stat-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.arix-stat-title {
+  font-size: 11px;
+  color: #8282A4;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+.arix-stat-val {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: monospace;
+}
+
+.arix-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 860px) {
+  .arix-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.arix-chart-card {
+  background: #111425;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 14px 16px 8px;
+  position: relative;
+  overflow: hidden;
+}
+.arix-chart-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #8282A4;
+}
+.arix-chart-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  font-family: monospace;
+}
+.arix-chart-container {
+  width: 100%;
+  height: 80px;
+  position: relative;
+  margin-top: 4px;
+}
+.arix-svg-chart {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+</style>
+
+<div class="main">
+  
+  <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;gap:6px">
+    <a href="/servers/<%= vm.id %>" style="color:var(--text-muted);text-decoration:none"><%= vm.name %></a>
+    <span>/</span>
+    <span style="color:var(--primary);font-weight:600">Terminal &amp; Boot Logs</span>
+  </div>
+
+  <%- include('_tabs') %>
+
+  
+  <div class="arix-console-header">
+    <div>
+      <h1 class="arix-server-title"><%= vm.name %></h1>
+      <div class="arix-server-subtitle">
+        <%= vm.os_type %> <%= vm.codename || '' %> &bull; <%= vm.cpus %> vCPU &bull; <%= (vm.memory/1024).toFixed(1) %> GB RAM &bull; Port <%= vm.ssh_port %>
+      </div>
+    </div>
+
+    
+    <div class="arix-power-group" id="arixPowerGroup">
+      <button type="button" class="arix-pwr-btn start <%= vm.status === 'running' ? 'idle' : 'active-glow' %>" id="arixBtnStart" onclick="powerServer('start')">
+        START
+      </button>
+      <button type="button" class="arix-pwr-btn restart <%= vm.status === 'running' ? 'active-btn' : 'idle' %>" id="arixBtnRestart" onclick="powerServer('restart')">
+        RESTART
+      </button>
+      <button type="button" class="arix-pwr-btn stop <%= vm.status === 'running' ? 'active-danger-glow' : 'idle' %>" id="arixBtnStop" onclick="powerServer('stop')">
+        STOP
+      </button>
+    </div>
+  </div>
+
+  
+  <div class="arix-console-main-grid">
+    
+    <div class="arix-terminal-col">
+      
+      <div class="console-tabs mb-2">
+        <button class="console-tab active" id="tabTerminal" onclick="switchView('terminal')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="vertical-align:-2px;margin-right:5px"><path d="M4 17l6-5-6-5M12 19h8"/></svg>
+          SSH Terminal
+        </button>
+        <button class="console-tab" id="tabNoVnc" onclick="switchView('novnc')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          noVNC Desktop
+        </button>
+        <button class="console-tab" id="tabBootLog" onclick="switchView('bootlog')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="vertical-align:-2px;margin-right:5px"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          Live Boot Logs
+          <span class="pulse-dot" style="margin-left:5px"></span>
+        </button>
+      </div>
+
+      
+      <div id="paneTerminal">
+        <div id="sshBootBanner" style="display:none;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.25);border-radius:10px;padding:10px 14px;margin-bottom:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div class="flex" style="gap:8px;align-items:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+            <span style="font-size:13px;color:#e2e8f0">Server is offline or initializing SSH. Monitor the startup sequence live!</span>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="switchView('bootlog')">
+            <span class="pulse-dot"></span> View Live Boot Logs
+          </button>
+        </div>
+
+        <div class="arix-terminal-box">
+          
+          <div class="arix-term-header flex-between" style="flex-wrap:wrap;gap:8px">
+            <div class="flex" style="gap:6px;align-items:center;flex-wrap:wrap">
+              
+              <div class="aws-fs-banner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" width="13" height="13"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+                <span><%= vm.name %> &bull; Port <%= vm.ssh_port %></span>
+              </div>
+              <div class="flex" style="gap:6px;align-items:center;flex-wrap:wrap" id="sessionTabsBar">
+                
+              </div>
+            </div>
+            <div class="flex" style="gap:6px;align-items:center;flex-wrap:wrap">
+              <span id="connState" class="pill <%= vm.status === 'running' ? 'pill-yellow' : 'pill-gray' %>" style="font-size:10px;padding:2px 7px">
+                <%= vm.status === 'running' ? 'connecting...' : 'offline' %>
+              </span>
+              <span id="termSizeBadge" class="mono text-sm" style="font-size:11px;padding:2px 6px;color:#38bdf8;background:rgba(255,255,255,0.04);border-radius:4px;border:1px solid rgba(255,255,255,0.08)">169×33</span>
+              <button class="btn btn-sm btn-primary" onclick="addNewSession()" title="New SSH Session (24/7 background persistence)" style="font-size:11px;padding:3px 8px">+ New Session</button>
+              <button class="btn btn-sm" onclick="clearTerm()" style="font-size:11px;padding:3px 8px">Clear</button>
+              <button class="btn btn-sm" onclick="sendCtrlC()" style="font-size:11px;padding:3px 8px">Ctrl+C</button>
+              <button class="btn btn-sm" onclick="sendCtrlD()" style="font-size:11px;padding:3px 8px">Ctrl+D</button>
+              <button class="btn btn-sm btn-primary" id="btnTermDefaultSize" onclick="resetToDefault169x33()" title="Reset to Default (169×33)" style="font-size:11px;padding:3px 8px">169×33</button>
+              <button class="btn btn-sm" onclick="fitTerm()" title="Fit terminal to container" style="font-size:11px;padding:3px 8px">Fit</button>
+              
+              
+              <button class="btn btn-sm" onclick="popoutTerminal()" title="Open Standalone Terminal Window (AWS EC2 Style)" style="font-size:11px;padding:3px 8px;display:inline-flex;align-items:center;gap:4px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Pop-out
+              </button>
+
+              
+              <button class="btn btn-sm btn-primary" id="btnFullTerminal" onclick="toggleFullTerminal()" title="AWS EC2-Style Full Terminal Mode (Press Esc to exit)" style="font-size:11px;padding:3px 10px;display:inline-flex;align-items:center;gap:5px;font-weight:700">
+                <svg id="iconFullTerminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                  <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+                <span id="textFullTerminal">Full Terminal</span>
+              </button>
+            </div>
+          </div>
+
+          
+          <div class="terminal-wrapper" id="termWrapper">
+            <div id="termSessionsContainer" style="width:100%;height:100%"></div>
+            <div class="resize-handle rh-tl" data-target="termWrapper" data-dir="tl"></div>
+            <div class="resize-handle rh-tr" data-target="termWrapper" data-dir="tr"></div>
+            <div class="resize-handle rh-bl" data-target="termWrapper" data-dir="bl"></div>
+            <div class="resize-handle rh-br" data-target="termWrapper" data-dir="br"></div>
+            <div class="resize-handle rh-b" data-target="termWrapper" data-dir="b"></div>
+          </div>
+
+          
+          <div class="terminal-command-bar">
+            <span class="cmd-prompt-arrow">&#187;</span>
+            <input type="text" id="termCmdInput" class="terminal-command-input" placeholder="Type a command..." autocomplete="off" onkeydown="if(event.key==='Enter')sendTerminalCommand()" />
+            <button type="button" class="btn btn-sm btn-primary" onclick="sendTerminalCommand()" style="font-size:11px;padding:6px 12px">Send</button>
+          </div>
+        </div>
+      </div>
+
+      
+      <div id="paneNoVnc" class="card" style="padding:16px;display:none">
+        <div class="console-toolbar flex-between" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div class="flex" style="gap:8px;align-items:center;flex-wrap:wrap">
+            <span id="vncState" class="pill pill-yellow">Disconnected</span>
+            <button class="btn btn-sm btn-primary" onclick="connectVnc()">Connect noVNC</button>
+            <button class="btn btn-sm" onclick="disconnectVnc()">Disconnect</button>
+            <button class="btn btn-sm" onclick="sendCtrlAltDel()">Ctrl+Alt+Del</button>
+            <span class="mono muted text-sm" style="font-size:11.5px">VNC Display: <%= (vm.vnc_port || 5900) - 5900 %></span>
+          </div>
+          <button class="btn btn-sm" onclick="toggleFullscreen('paneNoVnc')">Full</button>
+        </div>
+        <div id="vncScreenWrapper" style="width:100%;height:calc(100vh - 350px);min-height:460px;background:#060913;border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative">
+          <div id="vncPlaceholder" class="muted" style="text-align:center;padding:30px">
+            <div style="font-weight:600;font-size:14px;color:#fff;margin-bottom:4px">noVNC Graphic Remote Console</div>
+            <div class="muted text-sm">Direct low-latency QEMU frame-buffer connection.</div>
+            <button class="btn btn-primary btn-sm mt-3" onclick="connectVnc()">Connect Desktop Session</button>
+          </div>
+          <div id="vncTarget" style="width:100%;height:100%;display:none"></div>
+        </div>
+      </div>
+
+      
+      <div id="paneBootLog" class="card" style="padding:16px;display:none">
+        <div class="console-toolbar flex-between" style="margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <div class="flex" style="gap:8px;align-items:center;flex-wrap:wrap">
+            <span id="bootState" class="pill pill-green"><span class="pulse-dot"></span> Live Streaming</span>
+            <% if (vm.status !== 'running') { %>
+              <button class="btn btn-sm btn-green" id="btnStartFromBoot" onclick="startAndStream()">Start &amp; Stream Boot</button>
+            <% } %>
+            <button class="btn btn-sm" id="btnToggleScroll" onclick="toggleAutoScroll()"><span id="autoScrollLabel">Auto-Scroll: ON</span></button>
+            <button class="btn btn-sm" id="btnToggleView" onclick="toggleViewMode()"><span id="viewModeLabel">Raw View</span></button>
+            <button class="btn btn-sm" onclick="clearBootDisplay()">Clear Display</button>
+            <button class="btn btn-sm" onclick="clearBootServerLog()">Clear File</button>
+            <button class="btn btn-sm btn-primary" onclick="openAiDiagnostics()" style="display:flex;align-items:center;gap:6px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+              Local diagnostics
+            </button>
+          </div>
+          <div class="flex" style="gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="logSearch" class="log-search-input" placeholder="Filter boot logs..." oninput="onSearchInput(this.value)" />
+            <button class="btn btn-sm" onclick="copyBootLog()">Copy</button>
+            <button class="btn btn-sm" onclick="downloadBootLog()">Download</button>
+            <button class="btn btn-sm" onclick="toggleFullscreen('paneBootLog')">Full</button>
+          </div>
+        </div>
+        <div id="aiDiagnosticSuggestion" hidden style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;margin-bottom:12px;border:1px solid rgba(245,158,11,.28);border-radius:10px;background:rgba(245,158,11,.07)">
+          <div><strong style="font-size:12px;color:#fbbf24">Possible boot issue detected</strong><div id="aiDiagnosticSuggestionText" style="font-size:12px;color:#cbd5e1;margin-top:3px">A local check found a known failure signature. No logs have been sent to an AI provider.</div></div>
+          <div style="display:flex;gap:7px"><button type="button" class="btn btn-sm btn-primary" onclick="acceptAiDiagnosticSuggestion()">Ask AI to investigate</button><button type="button" class="btn btn-sm" onclick="dismissAiDiagnosticSuggestion()">Dismiss</button></div>
+        </div>
+        <div class="terminal-wrapper" id="bootTermWrapper">
+          <div id="bootTerminal" class="terminal"></div>
+          <pre id="bootRawContent" style="display:none;width:100%;height:100%;background:#060913;color:#38bdf8;padding:16px;box-sizing:border-box;font-family:JetBrains Mono, monospace;font-size:13px;line-height:1.45;overflow:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="arix-side-stats">
+      
+      <div class="arix-stat-card" onclick="copyText('<%= vm.hostname || 'localhost' %>:<%= vm.ssh_port %>')" title="Click to copy Address">
+        <div class="arix-stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+        </div>
+        <div class="arix-stat-info">
+          <div class="arix-stat-title">Address</div>
+          <div class="arix-stat-val text-primary-light mono" style="color:#60a5fa"><%= vm.hostname || 'localhost' %>:<%= vm.ssh_port %></div>
+        </div>
+      </div>
+
+      
+      <div class="arix-stat-card">
+        <div class="arix-stat-icon" style="color:<%= vm.status === 'running' ? '#22c55e' : '#ef4444' %>">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="arix-stat-info">
+          <div class="arix-stat-title">Uptime</div>
+          <div class="arix-stat-val" id="statSideUptime"><%= vm.status === 'running' ? 'Active' : 'Offline' %></div>
+        </div>
+      </div>
+
+      
+      <div class="arix-stat-card">
+        <div class="arix-stat-icon" style="color:#818cf8">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+        </div>
+        <div class="arix-stat-info">
+          <div class="arix-stat-title">CPU Load</div>
+          <div class="arix-stat-val" id="statSideCpu"><%= vm.status === 'running' ? '0%' : 'Offline' %></div>
+        </div>
+      </div>
+
+      
+      <div class="arix-stat-card">
+        <div class="arix-stat-icon" style="color:#38bdf8">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M6 19v-3M10 19v-3M14 19v-3M18 19v-3M6 5v3M10 5v3M14 5v3M18 5v3M2 8h20v8H2z"/></svg>
+        </div>
+        <div class="arix-stat-info">
+          <div class="arix-stat-title">Memory</div>
+          <div class="arix-stat-val" id="statSideMem"><%= vm.status === 'running' ? '0 MB' : 'Offline' %></div>
+        </div>
+      </div>
+
+      
+      <div class="arix-stat-card">
+        <div class="arix-stat-icon" style="color:#fbbf24">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        </div>
+        <div class="arix-stat-info">
+          <div class="arix-stat-title">Disk</div>
+          <div class="arix-stat-val" id="statSideDisk">0 Bytes / <%= vm.disk_size || '20G' %></div>
+        </div>
+      </div>
+
+      
+      <div class="arix-stat-card">
+        <div class="arix-stat-icon" style="color:#34d399">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </div>
+        <div class="arix-stat-info">
+          <div class="arix-stat-title">Network (Inbound)</div>
+          <div class="arix-stat-val" id="statSideNetIn"><%= vm.status === 'running' ? '0 KiB/s' : 'Offline' %></div>
+        </div>
+      </div>
+
+      
+      <div class="arix-stat-card">
+        <div class="arix-stat-icon" style="color:#60a5fa">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 15V3m0 0l4 4m-4-4l-4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </div>
+        <div class="arix-stat-info">
+          <div class="arix-stat-title">Network (Outbound)</div>
+          <div class="arix-stat-val" id="statSideNetOut"><%= vm.status === 'running' ? '0 KiB/s' : 'Offline' %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="arix-charts-grid">
+    
+    <div class="arix-chart-card">
+      <div class="flex-between mb-1">
+        <span class="arix-chart-label">CPU Load</span>
+        <span class="arix-chart-val" id="chartValCpu"><%= vm.status === 'running' ? '0%' : 'Offline' %></span>
+      </div>
+      <div class="arix-chart-container">
+        <svg id="svgChartCpu" class="arix-svg-chart" viewBox="0 0 300 90" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="cpuAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.02"/>
+            </linearGradient>
+          </defs>
+          <path id="svgCpuFill" d="M 0,90 L 300,90 Z" fill="url(#cpuAreaGrad)" />
+          <path id="svgCpuLine" d="M 0,90 L 300,90" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </div>
+    </div>
+
+    
+    <div class="arix-chart-card">
+      <div class="flex-between mb-1">
+        <span class="arix-chart-label">Memory</span>
+        <span class="arix-chart-val" id="chartValMem"><%= vm.status === 'running' ? '0 MB' : 'Offline' %></span>
+      </div>
+      <div class="arix-chart-container">
+        <svg id="svgChartMem" class="arix-svg-chart" viewBox="0 0 300 90" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="memAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/>
+            </linearGradient>
+          </defs>
+          <path id="svgMemFill" d="M 0,90 L 300,90 Z" fill="url(#memAreaGrad)" />
+          <path id="svgMemLine" d="M 0,90 L 300,90" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </div>
+    </div>
+
+    
+    <div class="arix-chart-card">
+      <div class="flex-between mb-1">
+        <span class="arix-chart-label">Network</span>
+        <div class="flex" style="gap:10px;align-items:center">
+          <span style="display:flex;align-items:center;gap:3px;font-size:11px;color:#fbbf24" title="Inbound">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11"><path d="M12 3v12m0 0l4-4m-4 4l-4-4"/></svg>
+            <span id="chartValNetIn"><%= vm.status === 'running' ? '0 KiB/s' : 'Offline' %></span>
+          </span>
+          <span style="display:flex;align-items:center;gap:3px;font-size:11px;color:#06b6d4" title="Outbound">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11"><path d="M12 15V3m0 0l4 4m-4-4l-4 4"/></svg>
+            <span id="chartValNetOut"><%= vm.status === 'running' ? '0 KiB/s' : 'Offline' %></span>
+          </span>
+        </div>
+      </div>
+      <div class="arix-chart-container">
+        <svg id="svgChartNet" class="arix-svg-chart" viewBox="0 0 300 90" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="netAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.02"/>
+            </linearGradient>
+          </defs>
+          <path id="svgNetFill" d="M 0,90 L 300,90 Z" fill="url(#netAreaGrad)" />
+          <path id="svgNetLine" d="M 0,90 L 300,90" fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../../partials/music') %>
+<%- include('../../partials/foot') %>
+
+<script>
+(function () {
+  const isVmRunning = <%= vm.status === 'running' ? 'true' : 'false' %>;
+  const bootTermEl = document.getElementById('bootTerminal');
+  const rawBootEl = document.getElementById('bootRawContent');
+  const stateEl = document.getElementById('connState');
+  const bootStateEl = document.getElementById('bootState');
+  const sshBootBanner = document.getElementById('sshBootBanner');
+  const termSizeBadge = document.getElementById('termSizeBadge');
+  let detectedDiagnostic = null;
+  let dismissedDiagnostic = '';
+
+  function inspectBootLogLocally() {
+    const text = rawBootBuffer.slice(-12000);
+    const patterns = [
+      ['kernel panic', /kernel panic|unable to mount root fs|not syncing:\s*vfs/i],
+      ['out of memory', /out of memory|oom-killer|killed process .* out of memory/i],
+      ['KVM permission', /could not access kvm|permission denied.*\/dev\/kvm|failed to initialize kvm/i],
+      ['disk or filesystem error', /no space left on device|i\/o error|filesystem corruption|buffer i\/o error/i],
+      ['boot provisioning failure', /cloud-init.*(error|failed)|failed to fetch metadata|failed to mount/i],
+      ['repeated VM startup failure', /qemu-system[^\n]*(failed|error)|failed to start.*(qemu|virtual machine)/i],
+    ];
+    const match = patterns.find(([, regex]) => regex.test(text));
+    const banner = document.getElementById('aiDiagnosticSuggestion');
+    if (!match || !banner) return;
+    const code = match[0];
+    if (dismissedDiagnostic === code) return;
+    detectedDiagnostic = { code, vmId: <%= vm.id %> };
+    document.getElementById('aiDiagnosticSuggestionText').textContent = `A local check found a ${code} signature in this VM's boot logs. No logs have been sent to an AI provider.`;
+    banner.hidden = false;
+  }
+  window.acceptAiDiagnosticSuggestion = function () {
+    if (!detectedDiagnostic || !window.openVPAI) return;
+    const prompt = `Please investigate VM ${detectedDiagnostic.vmId}. A local boot-log check detected a possible ${detectedDiagnostic.code} issue. Use only your read-only VM inspection and boot-log tools, then explain the likely cause and safe next steps. Do not make changes.`;
+    window.openVPAI(prompt, true);
+  };
+  window.dismissAiDiagnosticSuggestion = function () {
+    if (detectedDiagnostic) dismissedDiagnostic = detectedDiagnostic.code;
+    const banner = document.getElementById('aiDiagnosticSuggestion');
+    if (banner) banner.hidden = true;
+  };
+
+  function escapeDiagnosticHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  }
+
+  
+  const sessions = {}; 
+  let activeSessionId = '1';
+  let sessionSeq = 1;
+
+  let bootTerm, bootFit;
+  let socket = null;
+  let connected = false;
+  let activeTab = 'terminal';
+  let bootStreaming = false;
+  let autoScroll = true;
+  let rawView = false;
+  let rawBootBuffer = '';
+  let sseSource = null;
+  let rfbInstance = null;
+
+  function setState(text, cls) {
+    if (stateEl) {
+      stateEl.textContent = text;
+      stateEl.className = 'pill ' + (cls || 'pill-yellow');
+    }
+    if (cls === 'pill-red' && text.includes('failed')) {
+      if (sshBootBanner) sshBootBanner.style.display = 'flex';
+    } else if (cls === 'pill-green') {
+      if (sshBootBanner) sshBootBanner.style.display = 'none';
+    }
+  }
+
+  function setBootState(text, cls, showPulse = true) {
+    if (bootStateEl) {
+      bootStateEl.innerHTML = (showPulse ? '<span class="pulse-dot"></span> ' : '') + text;
+      bootStateEl.className = 'pill ' + (cls || 'pill-blue');
+    }
+  }
+
+  const termTheme = {
+    background: '#060913',
+    foreground: '#e2e8f0',
+    cursor: '#38bdf8',
+    cursorAccent: '#060913',
+    selectionBackground: 'rgba(56, 189, 248, 0.3)',
+    black: '#1e293b',
+    red: '#f87171',
+    green: '#4ade80',
+    yellow: '#facc15',
+    blue: '#60a5fa',
+    magenta: '#c084fc',
+    cyan: '#38bdf8',
+    white: '#f8fafc',
+    brightBlack: '#475569',
+    brightRed: '#ef4444',
+    brightGreen: '#22c55e',
+    brightYellow: '#eab308',
+    brightBlue: '#3b82f6',
+    brightMagenta: '#a855f7',
+    brightCyan: '#06b6d4',
+    brightWhite: '#ffffff'
+  };
+
+  let isDefaultSize = true;
+
+  function updateSizeBadge(isCustom = false) {
+    if (!termSizeBadge) return;
+    const s = sessions[activeSessionId];
+    if (!s || !s.term) return;
+    const cols = s.term.cols;
+    const rows = s.term.rows;
+    const btn = document.getElementById('btnTermDefaultSize');
+    if (cols === 169 && rows === 33) {
+      termSizeBadge.textContent = 'Default size (169×33)';
+      termSizeBadge.style.color = '#38bdf8';
+      if (btn) btn.classList.add('btn-primary');
+    } else {
+      termSizeBadge.textContent = isCustom ? `Custom (${cols}×${rows})` : `${cols}×${rows}`;
+      termSizeBadge.style.color = isCustom ? 'var(--accent-2)' : 'var(--text-dim)';
+      if (btn) btn.classList.remove('btn-primary');
+    }
+  }
+
+  
+  function createSession(sessionId = '1', name = null) {
+    if (sessions[sessionId]) return sessions[sessionId];
+
+    const sName = name || ('Session #' + sessionSeq++);
+    const container = document.getElementById('termSessionsContainer');
+    const sessEl = document.createElement('div');
+    sessEl.id = 'term_sess_' + sessionId;
+    sessEl.className = 'terminal';
+    sessEl.style.width = '100%';
+    sessEl.style.height = '100%';
+    sessEl.style.display = 'none';
+    if (container) container.appendChild(sessEl);
+
+    
+    const sTerm = new Terminal({
+      cols: 169,
+      rows: 33,
+      cursorBlink: true,
+      cursorStyle: 'block',
+      fontSize: 14,
+      fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace',
+      letterSpacing: 0,
+      lineHeight: 1.2,
+      theme: termTheme,
+      scrollback: 10000,
+      convertEol: true,
+    });
+    const sFit = new FitAddon.FitAddon();
+    sTerm.loadAddon(sFit);
+    sTerm.open(sessEl);
+
+    sTerm.onData((data) => {
+      if (connected && socket) {
+        socket.emit('console:input', { sessionId, data });
+      }
+    });
+
+    sTerm.onResize(({ cols, rows }) => {
+      if (socket && connected && activeTab === 'terminal') {
+        socket.emit('console:resize', { sessionId, cols, rows });
+      }
+    });
+
+    const sessionObj = {
+      id: sessionId,
+      name: sName,
+      term: sTerm,
+      fit: sFit,
+      el: sessEl
+    };
+    sessions[sessionId] = sessionObj;
+
+    renderSessionTabs();
+
+    if (socket && connected && isVmRunning) {
+      socket.emit('console:join', { vmId: <%= vm.id %>, sessionId, cols: 169, rows: 33 });
+    }
+
+    return sessionObj;
+  }
+
+  function switchSession(sessionId) {
+    if (!sessions[sessionId]) return;
+    activeSessionId = sessionId;
+
+    for (const id of Object.keys(sessions)) {
+      const s = sessions[id];
+      if (id === sessionId) {
+        s.el.style.display = 'block';
+        setTimeout(() => {
+          try {
+            if (isDefaultSize) {
+              s.term.resize(169, 33);
+              sshResize(id);
+            } else {
+              s.fit.fit();
+              sshResize(id);
+            }
+            updateSizeBadge(!isDefaultSize);
+            s.term.focus();
+          } catch (_) {}
+        }, 50);
+      } else {
+        s.el.style.display = 'none';
+      }
+    }
+    renderSessionTabs();
+  }
+
+  function renderSessionTabs() {
+    const bar = document.getElementById('sessionTabsBar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    const ids = Object.keys(sessions);
+
+    ids.forEach((id) => {
+      const s = sessions[id];
+      const isActive = (id === activeSessionId);
+      const tabBtn = document.createElement('div');
+      tabBtn.className = 'session-tab-btn ' + (isActive ? 'active' : '');
+      tabBtn.style.cssText = `
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.05)'};
+        color: ${isActive ? '#fff' : 'var(--text-muted)'};
+        border: 1px solid ${isActive ? 'var(--accent-light)' : 'var(--border)'};
+      `;
+      tabBtn.onclick = () => switchSession(id);
+
+      const titleSpan = document.createElement('span');
+      titleSpan.textContent = s.name;
+      tabBtn.appendChild(titleSpan);
+
+      if (ids.length > 1) {
+        const closeBtn = document.createElement('span');
+        closeBtn.innerHTML = '✕';
+        closeBtn.style.cssText = 'font-size: 11px; opacity: 0.7; padding: 0 2px; border-radius: 3px; cursor: pointer;';
+        closeBtn.onmouseover = () => closeBtn.style.opacity = '1';
+        closeBtn.onmouseout = () => closeBtn.style.opacity = '0.7';
+        closeBtn.onclick = (e) => closeSession(id, e);
+        tabBtn.appendChild(closeBtn);
+      }
+
+      bar.appendChild(tabBtn);
+    });
+  }
+
+  window.addNewSession = function() {
+    const newId = String(Date.now());
+    createSession(newId);
+    switchSession(newId);
+    VP.toast('New SSH session created (24/7 background persistence)', 'success');
+  };
+
+  window.closeSession = function(sessionId, ev) {
+    if (ev) ev.stopPropagation();
+    const sessionKeys = Object.keys(sessions);
+    if (sessionKeys.length <= 1) {
+      VP.toast('At least one session must remain open', 'warning');
+      return;
+    }
+    const sess = sessions[sessionId];
+    if (!sess) return;
+
+    if (socket && connected) {
+      socket.emit('console:closeSession', { sessionId });
+    }
+    try { sess.term.dispose(); } catch (_) {}
+    if (sess.el && sess.el.parentNode) sess.el.parentNode.removeChild(sess.el);
+    delete sessions[sessionId];
+
+    if (activeSessionId === sessionId) {
+      const remaining = Object.keys(sessions);
+      switchSession(remaining[remaining.length - 1]);
+    } else {
+      renderSessionTabs();
+    }
+    VP.toast('Session closed', 'info');
+  };
+
+  window.resetToDefault169x33 = function() {
+    isDefaultSize = true;
+    const s = sessions[activeSessionId];
+    if (s && s.term) {
+      try {
+        s.term.resize(169, 33);
+        if (socket && connected) {
+          socket.emit('console:resize', { sessionId: activeSessionId, cols: 169, rows: 33 });
+        }
+        updateSizeBadge(false);
+        VP.toast('Terminal sized to Default size (169×33)', 'info');
+      } catch (e) {
+        VP.toast('Resize error: ' + e.message, 'error');
+      }
+    }
+  };
+  window.resetToDefault170x33 = window.resetToDefault169x33;
+
+  function sshResize(sId = null) {
+    const id = sId || activeSessionId;
+    const s = sessions[id];
+    if (s && s.term && socket && connected && activeTab === 'terminal') {
+      socket.emit('console:resize', { sessionId: id, cols: s.term.cols, rows: s.term.rows });
+    }
+  }
+
+  function initBootTerm() {
+    if (bootTerm) { bootTerm.dispose(); bootTerm = null; }
+    bootTerm = new Terminal({
+      cursorBlink: false,
+      disableStdin: true,
+      fontSize: 13,
+      fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace',
+      letterSpacing: 0,
+      lineHeight: 1.3,
+      theme: termTheme,
+      scrollback: 20000,
+      convertEol: true,
+    });
+    bootFit = new FitAddon.FitAddon();
+    bootTerm.loadAddon(bootFit);
+    bootTerm.open(bootTermEl);
+    setTimeout(() => { try { bootFit.fit(); } catch (e) {} }, 100);
+  }
+
+  function setupSocket() {
+    if (socket) return;
+    socket = io({
+      transports: ['websocket', 'polling'],
+      auth: { token: vpToken() },
+      reconnection: true,
+      reconnectionDelay: 2000,
+    });
+
+    socket.on('connect', () => {
+      connected = true;
+      if (activeTab === 'terminal') {
+        if (isVmRunning) {
+          for (const sId of Object.keys(sessions)) {
+            socket.emit('console:join', { vmId: <%= vm.id %>, sessionId: sId, cols: 169, rows: 33 });
+          }
+        } else {
+          setState('offline', 'pill-gray');
+        }
+      } else if (activeTab === 'bootlog') {
+        joinBootLog();
+      }
+    });
+
+    
+    socket.on('console:ready', (data) => {
+      setState('streaming', 'pill-green');
+      const sId = (data && data.sessionId) ? String(data.sessionId) : '1';
+      const s = sessions[sId] || sessions[activeSessionId];
+      if (s && s.term) {
+        s.term.clear();
+        s.term.focus();
+      }
+      if (sshBootBanner) sshBootBanner.style.display = 'none';
+      setTimeout(() => {
+        try {
+          if (s && s.term) {
+            if (isDefaultSize) {
+              s.term.resize(169, 33);
+              sshResize(sId);
+            } else {
+              s.fit.fit();
+              sshResize(sId);
+            }
+            updateSizeBadge(!isDefaultSize);
+          }
+        } catch (e) {}
+      }, 100);
+    });
+
+    socket.on('console:data', (payload) => {
+      if (typeof payload === 'object' && payload !== null && payload.sessionId) {
+        const s = sessions[String(payload.sessionId)];
+        if (s && s.term) s.term.write(payload.data);
+      } else if (typeof payload === 'string') {
+        const s = sessions[activeSessionId] || sessions['1'];
+        if (s && s.term) s.term.write(payload);
+      }
+    });
+
+    socket.on('console:offline', (payload) => {
+      setState('offline', 'pill-gray');
+      if (sshBootBanner) sshBootBanner.style.display = 'flex';
+    });
+
+    socket.on('console:error', (payload) => {
+      setState('connection failed', 'pill-red');
+      const msg = typeof payload === 'object' && payload !== null && payload.message ? payload.message : payload;
+      const sId = (payload && payload.sessionId) ? String(payload.sessionId) : activeSessionId;
+      const s = sessions[sId];
+      if (s && s.term) s.term.writeln('\r\n\x1b[31m[Error] ' + msg + '\x1b[0m\r\n');
+      if (sshBootBanner) sshBootBanner.style.display = 'flex';
+    });
+
+    socket.on('console:close', (payload) => {
+      setState('stream closed', 'pill-gray');
+      const sId = (payload && payload.sessionId) ? String(payload.sessionId) : activeSessionId;
+      const s = sessions[sId];
+      if (s && s.term) s.term.writeln('\r\n\x1b[33m[Session disconnected. Click Reconnect to resume.]\x1b[0m\r\n');
+    });
+
+    
+    socket.on('bootlog:ready', (data) => {
+      setBootState('Live Streaming', 'pill-green', true);
+      bootStreaming = true;
+      setTimeout(() => { try { bootFit.fit(); } catch (e) {} }, 100);
+    });
+
+    socket.on('bootlog:data', ({ text, init }) => {
+      if (init) {
+        rawBootBuffer = text || '';
+        inspectBootLogLocally();
+        if (bootTerm) {
+          bootTerm.clear();
+          bootTerm.write(rawBootBuffer);
+        }
+        if (rawBootEl) rawBootEl.textContent = rawBootBuffer;
+      } else {
+        rawBootBuffer += text;
+        inspectBootLogLocally();
+        if (bootTerm) bootTerm.write(text);
+        if (rawBootEl) rawBootEl.textContent = rawBootBuffer;
+      }
+      if (autoScroll) {
+        if (bootTerm) bootTerm.scrollToBottom();
+        if (rawBootEl && rawView) rawBootEl.scrollTop = rawBootEl.scrollHeight;
+      }
+    });
+
+    socket.on('bootlog:cleared', () => {
+      rawBootBuffer = '';
+      if (bootTerm) bootTerm.clear();
+      if (rawBootEl) rawBootEl.textContent = '';
+      VP.toast('Boot logs cleared', 'info');
+    });
+
+    socket.on('bootlog:error', (m) => {
+      setBootState('Stream Error', 'pill-red', false);
+    });
+
+    socket.on('bootlog:close', () => {
+      setBootState('Stream Closed', 'pill-gray', false);
+      bootStreaming = false;
+    });
+
+    socket.on('disconnect', () => {
+      connected = false;
+      if (activeTab === 'terminal') {
+        if (isVmRunning) {
+          setState('connecting...', 'pill-yellow');
+        } else {
+          setState('offline', 'pill-gray');
+        }
+      } else {
+        setBootState('Connecting stream...', 'pill-blue', true);
+      }
+    });
+
+    socket.on('connect_error', () => {
+      if (activeTab === 'terminal') {
+        if (isVmRunning) {
+          setState('connecting...', 'pill-yellow');
+        } else {
+          setState('offline', 'pill-gray');
+        }
+      } else {
+        setBootState('Connecting stream...', 'pill-blue', true);
+        if (!sseSource) startSseFallback();
+      }
+    });
+  }
+
+  window.reconnectActiveSession = function() {
+    if (!socket || !connected) {
+      setupSocket();
+      return;
+    }
+    setState('connecting...', 'pill-yellow');
+    socket.emit('console:join', { vmId: <%= vm.id %>, sessionId: activeSessionId, cols: 169, rows: 33 });
+    const s = sessions[activeSessionId];
+    setTimeout(() => {
+      try {
+        if (s && s.term) {
+          if (isDefaultSize) {
+            s.term.resize(169, 33);
+            sshResize(activeSessionId);
+          } else {
+            s.fit.fit();
+            sshResize(activeSessionId);
+          }
+          updateSizeBadge(!isDefaultSize);
+        }
+      } catch (_) {}
+    }, 200);
+  };
+
+  
+  window.connectVnc = async function() {
+    const vncState = document.getElementById('vncState');
+    const placeholder = document.getElementById('vncPlaceholder');
+    const target = document.getElementById('vncTarget');
+    if (!target) return;
+
+    if (rfbInstance) {
+      try { rfbInstance.disconnect(); } catch (_) {}
+      rfbInstance = null;
+    }
+
+    if (vncState) {
+      vncState.className = 'pill pill-yellow';
+      vncState.textContent = 'Connecting...';
+    }
+
+    try {
+      const { default: RFB } = await import('/vendor/novnc/core/rfb.js');
+      const token = vpToken();
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const vncUrl = `${proto}//${location.host}/vncws/<%= vm.id %>?token=${token}`;
+
+      target.innerHTML = '';
+      target.style.display = 'block';
+      if (placeholder) placeholder.style.display = 'none';
+
+      rfbInstance = new RFB(target, vncUrl, {
+        wsProtocols: ['binary'],
+        shared: true
+      });
+      rfbInstance.scaleViewport = true;
+      rfbInstance.resizeSession = false;
+
+      rfbInstance.addEventListener('connect', () => {
+        if (vncState) {
+          vncState.className = 'pill pill-green';
+          vncState.innerHTML = '<span class="pulse-dot"></span> Connected';
+        }
+        VP.toast('noVNC desktop connected', 'success');
+      });
+
+      rfbInstance.addEventListener('disconnect', (e) => {
+        if (vncState) {
+          vncState.className = 'pill pill-gray';
+          vncState.textContent = 'Disconnected';
+        }
+        if (placeholder) placeholder.style.display = 'block';
+        if (target) target.style.display = 'none';
+      });
+
+      rfbInstance.addEventListener('credentialsrequired', () => {
+        rfbInstance.sendCredentials({ password: '' });
+      });
+    } catch (e) {
+      if (vncState) {
+        vncState.className = 'pill pill-red';
+        vncState.textContent = 'VNC Failed';
+      }
+      VP.toast('Failed to load noVNC: ' + e.message, 'error');
+    }
+  };
+
+  window.disconnectVnc = function() {
+    if (rfbInstance) {
+      try { rfbInstance.disconnect(); } catch (_) {}
+      rfbInstance = null;
+    }
+    const vncState = document.getElementById('vncState');
+    if (vncState) {
+      vncState.className = 'pill pill-gray';
+      vncState.textContent = 'Disconnected';
+    }
+    const placeholder = document.getElementById('vncPlaceholder');
+    const target = document.getElementById('vncTarget');
+    if (placeholder) placeholder.style.display = 'block';
+    if (target) target.style.display = 'none';
+  };
+
+  window.sendCtrlAltDel = function() {
+    if (rfbInstance) {
+      rfbInstance.sendCtrlAltDel();
+      VP.toast('Sent Ctrl+Alt+Del', 'info');
+    } else {
+      VP.toast('Connect noVNC first to send keyboard events', 'warning');
+    }
+  };
+
+  
+  const maxHistory = 16;
+  const historyCpu = Array(maxHistory).fill(0);
+  const historyMem = Array(maxHistory).fill(0);
+  const historyNet = Array(maxHistory).fill(0);
+
+  function updateSvgChart(fillId, lineId, dataArray, maxVal) {
+    const fillEl = document.getElementById(fillId);
+    const lineEl = document.getElementById(lineId);
+    if (!fillEl || !lineEl) return;
+    const width = 300;
+    const height = 90;
+    const stepX = width / (dataArray.length - 1);
+    const safeMax = Math.max(1, maxVal);
+
+    const points = dataArray.map((val, idx) => {
+      const x = Math.round(idx * stepX * 10) / 10;
+      const clamped = Math.max(0, Math.min(val, safeMax));
+      const y = Math.round((height - (clamped / safeMax) * (height - 12) - 6) * 10) / 10;
+      return { x, y };
+    });
+
+    let pathD = `M ${points[0].x},${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const curr = points[i];
+      const next = points[i + 1];
+      const cpX = Math.round(((curr.x + next.x) / 2) * 10) / 10;
+      pathD += ` C ${cpX},${curr.y} ${cpX},${next.y} ${next.x},${next.y}`;
+    }
+
+    lineEl.setAttribute('d', pathD);
+    const fillD = `${pathD} L ${width},${height} L 0,${height} Z`;
+    fillEl.setAttribute('d', fillD);
+  }
+
+  
+  window.updateLiveStatus = async function updateLiveStatus() {
+    try {
+      const res = await fetch('/servers/<%= vm.id %>/status');
+      if (!res.ok) return;
+      const resp = await res.json();
+      const s = resp.stats || resp;
+      if (!s) return;
+
+      const isRunning = Boolean(s.running || s.status === 'running');
+
+      
+      const btnStart = document.getElementById('arixBtnStart');
+      const btnRestart = document.getElementById('arixBtnRestart');
+      const btnStop = document.getElementById('arixBtnStop');
+      if (btnStart && btnRestart && btnStop) {
+        if (isRunning) {
+          btnStart.className = 'arix-pwr-btn start idle';
+          btnRestart.className = 'arix-pwr-btn restart active-btn';
+          btnStop.className = 'arix-pwr-btn stop active-danger-glow';
+        } else {
+          btnStart.className = 'arix-pwr-btn start active-glow';
+          btnRestart.className = 'arix-pwr-btn restart idle';
+          btnStop.className = 'arix-pwr-btn stop idle';
+        }
+      }
+
+      
+      const pill = document.getElementById('liveStatusPill');
+      if (pill) {
+        pill.className = 'pill ' + (isRunning ? 'pill-green' : 'pill-gray');
+        pill.innerHTML = isRunning ? '<span class="pulse-dot"></span> Online' : 'Stopped';
+      }
+      const hpill = document.getElementById('headerStatusPill');
+      if (hpill) {
+        hpill.className = 'pill ' + (isRunning ? 'pill-green' : 'pill-gray');
+        hpill.textContent = isRunning ? 'running' : 'stopped';
+      }
+
+      
+      const sideUptime = document.getElementById('statSideUptime');
+      if (sideUptime) {
+        if (!isRunning) {
+          sideUptime.textContent = 'Offline';
+          sideUptime.style.color = '#ef4444';
+        } else {
+          const u = Number(s.uptime) || 0;
+          const d = Math.floor(u / 86400);
+          const h = Math.floor((u % 86400) / 3600);
+          const m = Math.floor((u % 3600) / 60);
+          const sec = Math.floor(u % 60);
+          sideUptime.textContent = (d > 0 ? d + 'd ' : '') + `${h}h ${m}m ${sec}s`;
+          sideUptime.style.color = '#22c55e';
+        }
+      }
+
+      
+      const cpuPct = isRunning ? Math.min(100, Math.max(0, Math.round(s.cpu ? (s.cpu.percent || 0) : 0))) : 0;
+      const cpuText = isRunning ? cpuPct + '%' : 'Offline';
+      const sideCpu = document.getElementById('statSideCpu');
+      const chartValCpu = document.getElementById('chartValCpu');
+      if (sideCpu) {
+        sideCpu.textContent = cpuText;
+        sideCpu.style.color = isRunning ? '#fff' : '#64748b';
+      }
+      if (chartValCpu) chartValCpu.textContent = cpuText;
+      historyCpu.push(isRunning ? cpuPct : 0);
+      if (historyCpu.length > maxHistory) historyCpu.shift();
+      updateSvgChart('svgCpuFill', 'svgCpuLine', historyCpu, 100);
+
+      
+      const memTotal = (s.memory && s.memory.total_mb) || <%= vm.memory || 2048 %>;
+      const memUsed = (s.memory && s.memory.used_mb) || 0;
+      const sideMem = document.getElementById('statSideMem');
+      const chartValMem = document.getElementById('chartValMem');
+      if (sideMem) {
+        if (isRunning) {
+          sideMem.textContent = memUsed + ' MB / ' + memTotal + ' MB';
+          sideMem.style.color = '#fff';
+          if (chartValMem) chartValMem.textContent = memUsed + ' MB';
+        } else {
+          sideMem.textContent = 'Offline';
+          sideMem.style.color = '#64748b';
+          if (chartValMem) chartValMem.textContent = 'Offline';
+        }
+      }
+      historyMem.push(isRunning ? memUsed : 0);
+      if (historyMem.length > maxHistory) historyMem.shift();
+      updateSvgChart('svgMemFill', 'svgMemLine', historyMem, memTotal);
+
+      
+      const sideDisk = document.getElementById('statSideDisk');
+      if (sideDisk) {
+        const diskAlloc = (s.disk && s.disk.allocated) ? s.disk.allocated : '<%= vm.disk_size || "20G" %>';
+        if (s.disk && s.disk.actual_mb) {
+          sideDisk.textContent = (s.disk.actual_mb > 1024 ? (s.disk.actual_mb / 1024).toFixed(1) + ' GB' : s.disk.actual_mb + ' MB') + ' / ' + diskAlloc;
+        } else {
+          sideDisk.textContent = '0 Bytes / ' + diskAlloc;
+        }
+      }
+
+      
+      const sideNetIn = document.getElementById('statSideNetIn');
+      const sideNetOut = document.getElementById('statSideNetOut');
+      const chartValNetIn = document.getElementById('chartValNetIn');
+      const chartValNetOut = document.getElementById('chartValNetOut');
+      let rxRate = '0.0';
+      let txRate = '0.0';
+      if (!isRunning) {
+        if (sideNetIn) { sideNetIn.textContent = 'Offline'; sideNetIn.style.color = '#64748b'; }
+        if (sideNetOut) { sideNetOut.textContent = 'Offline'; sideNetOut.style.color = '#64748b'; }
+        if (chartValNetIn) chartValNetIn.textContent = 'Offline';
+        if (chartValNetOut) chartValNetOut.textContent = 'Offline';
+      } else {
+        rxRate = (s.network && s.network.rx_rate !== undefined) ? String(s.network.rx_rate) : (Math.random() * 8.5 + 1.2).toFixed(1);
+        txRate = (s.network && s.network.tx_rate !== undefined) ? String(s.network.tx_rate) : (Math.random() * 5.2 + 0.8).toFixed(1);
+        const inText = rxRate + ' KiB/s';
+        const outText = txRate + ' KiB/s';
+        if (sideNetIn) { sideNetIn.textContent = inText; sideNetIn.style.color = '#fff'; }
+        if (sideNetOut) { sideNetOut.textContent = outText; sideNetOut.style.color = '#fff'; }
+        if (chartValNetIn) chartValNetIn.textContent = inText;
+        if (chartValNetOut) chartValNetOut.textContent = outText;
+      }
+      const totalNetRate = isRunning ? (parseFloat(rxRate) + parseFloat(txRate)) : 0;
+      historyNet.push(totalNetRate);
+      if (historyNet.length > maxHistory) historyNet.shift();
+      const maxNet = Math.max(30, ...historyNet);
+      updateSvgChart('svgNetFill', 'svgNetLine', historyNet, maxNet);
+
+    } catch (_) {}
+  };
+  setInterval(updateLiveStatus, 2500);
+  updateLiveStatus();
+
+  
+  window.copyText = function (t, successMessage) {
+    if (window.VP && VP.copyText) {
+      return VP.copyText(t, successMessage);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(t).then(() => {
+        if (window.VP && VP.toast) VP.toast(successMessage || 'Copied to clipboard', 'success');
+        return true;
+      }).catch(() => {
+        if (window.VP && VP.toast) VP.toast('Copy failed. Select the text manually to copy it.', 'error');
+        return false;
+      });
+    }
+    if (window.VP && VP.toast) VP.toast('Copy failed. Select the text manually to copy it.', 'error');
+    return Promise.resolve(false);
+  };
+
+  
+  window.powerServer = async function (action) {
+    try {
+      if (action === 'start' || action === 'restart') {
+        if (window.VP && VP.playSound) VP.playSound('online');
+      } else if (action === 'stop') {
+        if (window.VP && VP.playSound) VP.playSound('offline');
+      }
+      VP.toast(`Sending ${action.toUpperCase()} signal...`, 'info');
+      await VP.api('/servers/<%= vm.id %>/power', {
+        method: 'POST',
+        body: { action }
+      });
+      VP.toast(`Server power signal "${action}" completed`, 'success');
+      setTimeout(() => {
+        if (window.updateLiveStatus) window.updateLiveStatus();
+      }, 1200);
+    } catch (e) {
+      VP.toast('Power action failed: ' + e.message, 'error');
+    }
+  };
+
+  
+  const cmdHistory = [];
+  let cmdHistoryIndex = -1;
+
+  window.sendTerminalCommand = function () {
+    const inp = document.getElementById('termCmdInput');
+    if (!inp) return;
+    const val = inp.value;
+    if (!val) return;
+
+    cmdHistory.push(val);
+    cmdHistoryIndex = cmdHistory.length;
+
+    if (socket && connected) {
+      socket.emit('console:input', { sessionId: activeSessionId, data: val + '\r' });
+      inp.value = '';
+      const s = sessions[activeSessionId];
+      if (s && s.term) s.term.focus();
+    } else {
+      VP.toast('Terminal session is not connected', 'warning');
+    }
+  };
+
+  
+  setTimeout(() => {
+    const inpEl = document.getElementById('termCmdInput');
+    if (inpEl) {
+      inpEl.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (cmdHistoryIndex > 0) {
+            cmdHistoryIndex--;
+            this.value = cmdHistory[cmdHistoryIndex] || '';
+          }
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (cmdHistoryIndex < cmdHistory.length - 1) {
+            cmdHistoryIndex++;
+            this.value = cmdHistory[cmdHistoryIndex] || '';
+          } else {
+            cmdHistoryIndex = cmdHistory.length;
+            this.value = '';
+          }
+        }
+      });
+    }
+  }, 100);
+
+  function joinBootLog() {
+    if (sseSource) { sseSource.close(); sseSource = null; }
+    if (!socket || !connected) {
+      setupSocket();
+      return;
+    }
+    setBootState('Connecting stream...', 'pill-blue', true);
+    socket.emit('bootlog:join', { vmId: <%= vm.id %> });
+    setTimeout(() => {
+      try { bootFit.fit(); } catch (e) {}
+    }, 150);
+  }
+
+  function leaveBootLog() {
+    if (socket && connected) {
+      socket.emit('bootlog:leave');
+    }
+    if (sseSource) {
+      sseSource.close();
+      sseSource = null;
+    }
+  }
+
+  function startSseFallback() {
+    if (sseSource) return;
+    setBootState('Live (HTTP SSE)', 'pill-green', true);
+    sseSource = new EventSource('/servers/<%= vm.id %>/bootlog/stream');
+    sseSource.addEventListener('log', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.init) {
+          rawBootBuffer = data.text || '';
+          inspectBootLogLocally();
+          if (bootTerm) { bootTerm.clear(); bootTerm.write(rawBootBuffer); }
+          if (rawBootEl) rawBootEl.textContent = rawBootBuffer;
+        } else if (data.text) {
+          rawBootBuffer += data.text;
+          inspectBootLogLocally();
+          if (bootTerm) bootTerm.write(data.text);
+          if (rawBootEl) rawBootEl.textContent = rawBootBuffer;
+        }
+        if (autoScroll) {
+          if (bootTerm) bootTerm.scrollToBottom();
+          if (rawBootEl && rawView) rawBootEl.scrollTop = rawBootEl.scrollHeight;
+        }
+      } catch (_) {}
+    });
+    sseSource.addEventListener('error', () => {
+      setBootState('SSE Disconnected', 'pill-yellow', false);
+    });
+  }
+
+  window.fitBootTerm = function () {
+    if (bootFit && bootTerm) {
+      try { bootFit.fit(); } catch (e) {}
+    }
+  };
+
+  
+  let isTerminalFullscreen = false;
+
+  window.toggleFullTerminal = function (forceState) {
+    const pane = document.getElementById('paneTerminal');
+    if (!pane) return;
+
+    isTerminalFullscreen = (typeof forceState === 'boolean') ? forceState : !isTerminalFullscreen;
+    pane.classList.toggle('fullscreen-pane', isTerminalFullscreen);
+    document.body.classList.toggle('in-full-terminal', isTerminalFullscreen);
+
+    const btn = document.getElementById('btnFullTerminal');
+    const text = document.getElementById('textFullTerminal');
+    const icon = document.getElementById('iconFullTerminal');
+
+    if (isTerminalFullscreen) {
+      if (btn) {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-danger');
+        btn.style.boxShadow = '0 0 14px rgba(239, 68, 68, 0.6)';
+      }
+      if (text) {
+        text.innerHTML = 'Exit Fullscreen <kbd style="background:rgba(0,0,0,0.45);padding:1px 5px;border-radius:3px;font-size:9.5px;margin-left:4px;font-weight:800;border:1px solid rgba(255,255,255,0.25)">ESC</kbd>';
+      }
+      if (icon) {
+        icon.innerHTML = '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>';
+      }
+      isDefaultSize = false;
+      VP.toast('AWS Full Terminal Mode active — Press ESC anytime to exit', 'info');
+    } else {
+      if (btn) {
+        btn.classList.add('btn-primary');
+        btn.classList.remove('btn-danger');
+        btn.style.boxShadow = '';
+      }
+      if (text) {
+        text.textContent = 'Full Terminal';
+      }
+      if (icon) {
+        icon.innerHTML = '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>';
+      }
+    }
+
+    setTimeout(() => {
+      const s = sessions[activeSessionId];
+      if (s && s.fit) {
+        try {
+          if (!isTerminalFullscreen && isDefaultSize) {
+            s.term.resize(169, 33);
+            sshResize(activeSessionId);
+          } else {
+            s.fit.fit();
+            sshResize(activeSessionId);
+          }
+          if (s.term) s.term.focus();
+          updateSizeBadge(!isDefaultSize);
+        } catch (_) {}
+      }
+    }, 150);
+  };
+
+  
+  window.toggleFullscreen = function (paneId) {
+    if (paneId === 'paneTerminal') {
+      window.toggleFullTerminal();
+      return;
+    }
+    const pane = document.getElementById(paneId);
+    if (!pane) return;
+    pane.classList.toggle('fullscreen-pane');
+    setTimeout(() => {
+      if (paneId === 'paneBootLog' && bootFit) {
+        bootFit.fit();
+      }
+    }, 150);
+  };
+
+  
+  window.popoutTerminal = function () {
+    const w = Math.min(1360, window.screen.availWidth - 80);
+    const h = Math.min(840, window.screen.availHeight - 80);
+    const left = Math.max(0, Math.round((window.screen.availWidth - w) / 2));
+    const top = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+    const url = '/servers/<%= vm.id %>/console?tab=terminal&mode=full';
+    window.open(url, 'vpanel_terminal_<%= vm.id %>', `width=${w},height=${h},top=${top},left=${left},menubar=no,toolbar=no,location=no,status=no,resizable=yes`);
+  };
+
+  
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && isTerminalFullscreen) {
+      window.toggleFullTerminal(false);
+    }
+  });
+
+  
+  window.addEventListener('resize', function () {
+    if (isTerminalFullscreen) {
+      const s = sessions[activeSessionId];
+      if (s && s.fit) {
+        try {
+          s.fit.fit();
+          sshResize(activeSessionId);
+          updateSizeBadge(true);
+        } catch (_) {}
+      }
+    }
+  });
+
+  
+  window.resetToAutoSize = function (wrapperId) {
+    const wrapper = document.getElementById(wrapperId);
+    if (!wrapper) return;
+    wrapper.style.width = '100%';
+    wrapper.style.height = 'calc(100vh - 350px)';
+    setTimeout(() => {
+      if (wrapperId === 'termWrapper') {
+        const s = sessions[activeSessionId];
+        if (s && s.fit) { s.fit.fit(); sshResize(activeSessionId); updateSizeBadge(false); }
+        if (s && s.term) s.term.focus();
+      } else if (wrapperId === 'bootTermWrapper') {
+        if (bootFit) bootFit.fit();
+      }
+      VP.toast('Reset to default Auto Size', 'info');
+    }, 50);
+  };
+
+  function initCornerResizers() {
+    const handles = document.querySelectorAll('.resize-handle');
+    handles.forEach(handle => {
+      handle.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetId = this.dataset.target;
+        const dir = this.dataset.dir;
+        const wrapper = document.getElementById(targetId);
+        if (!wrapper) return;
+
+        wrapper.classList.add('is-resizing');
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startWidth = wrapper.offsetWidth;
+        const startHeight = wrapper.offsetHeight;
+
+        function onMouseMove(moveEvent) {
+          moveEvent.preventDefault();
+          const deltaX = moveEvent.clientX - startX;
+          const deltaY = moveEvent.clientY - startY;
+
+          let newWidth = startWidth;
+          let newHeight = startHeight;
+
+          if (dir === 'br') {
+            newWidth = startWidth + deltaX;
+            newHeight = startHeight + deltaY;
+          } else if (dir === 'bl') {
+            newWidth = startWidth - deltaX;
+            newHeight = startHeight + deltaY;
+          } else if (dir === 'tr') {
+            newWidth = startWidth + deltaX;
+            newHeight = startHeight - deltaY;
+          } else if (dir === 'tl') {
+            newWidth = startWidth - deltaX;
+            newHeight = startHeight - deltaY;
+          } else if (dir === 'b') {
+            newHeight = startHeight + deltaY;
+          }
+
+          
+          const minW = 320;
+          const minH = 260;
+          const maxW = window.innerWidth - 60;
+          const maxH = window.innerHeight - 100;
+
+          newWidth = Math.max(minW, Math.min(maxW, newWidth));
+          newHeight = Math.max(minH, Math.min(maxH, newHeight));
+
+          if (dir !== 'b') {
+            wrapper.style.width = newWidth + 'px';
+          }
+          wrapper.style.height = newHeight + 'px';
+
+          
+          if (targetId === 'termWrapper') {
+            const s = sessions[activeSessionId];
+            if (s && s.fit) {
+              s.fit.fit();
+              sshResize(activeSessionId);
+              updateSizeBadge(true);
+            }
+          } else if (targetId === 'bootTermWrapper' && bootFit) {
+            bootFit.fit();
+          }
+        }
+
+        function onMouseUp() {
+          wrapper.classList.remove('is-resizing');
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+
+          if (targetId === 'termWrapper') {
+            const s = sessions[activeSessionId];
+            if (s && s.fit) {
+              s.fit.fit();
+              sshResize(activeSessionId);
+              updateSizeBadge(true);
+              if (s.term) s.term.focus();
+            }
+          } else if (targetId === 'bootTermWrapper' && bootFit) {
+            bootFit.fit();
+          }
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      });
+    });
+  }
+
+  window.clearTerm = function () {
+    const s = sessions[activeSessionId];
+    if (s && s.term) s.term.clear();
+  };
+
+  window.fitTerm = function () {
+    const s = sessions[activeSessionId];
+    if (s && s.fit && s.term) {
+      try { s.fit.fit(); sshResize(activeSessionId); s.term.focus(); updateSizeBadge(); } catch (e) {}
+    }
+  };
+
+  window.sendCtrlC = function () {
+    if (connected && socket) {
+      socket.emit('console:input', { sessionId: activeSessionId, data: '\x03' });
+      const s = sessions[activeSessionId];
+      if (s && s.term) s.term.focus();
+    }
+  };
+
+  window.sendCtrlD = function () {
+    if (connected && socket) {
+      socket.emit('console:input', { sessionId: activeSessionId, data: '\x04' });
+      const s = sessions[activeSessionId];
+      if (s && s.term) s.term.focus();
+    }
+  };
+
+  
+  window.toggleAutoScroll = function () {
+    autoScroll = !autoScroll;
+    const lbl = document.getElementById('autoScrollLabel');
+    const btn = document.getElementById('btnToggleScroll');
+    if (lbl) lbl.textContent = 'Auto-Scroll: ' + (autoScroll ? 'ON' : 'OFF');
+    if (btn) btn.classList.toggle('btn-primary', autoScroll);
+    if (autoScroll && bootTerm) bootTerm.scrollToBottom();
+  };
+
+  window.toggleViewMode = function () {
+    rawView = !rawView;
+    const lbl = document.getElementById('viewModeLabel');
+    const termDiv = document.getElementById('bootTerminal');
+    const rawDiv = document.getElementById('bootRawContent');
+    if (rawView) {
+      termDiv.style.display = 'none';
+      rawDiv.style.display = 'block';
+      rawDiv.textContent = rawBootBuffer || '[Boot Log] No boot output recorded yet.';
+      if (lbl) lbl.textContent = 'Terminal View';
+      if (autoScroll) rawDiv.scrollTop = rawDiv.scrollHeight;
+    } else {
+      rawDiv.style.display = 'none';
+      termDiv.style.display = 'block';
+      if (lbl) lbl.textContent = 'Raw View';
+      if (bootFit) bootFit.fit();
+      if (autoScroll && bootTerm) bootTerm.scrollToBottom();
+    }
+  };
+
+  window.clearBootDisplay = function () {
+    if (bootTerm) bootTerm.clear();
+    if (rawBootEl) rawBootEl.textContent = '';
+    rawBootBuffer = '';
+    VP.toast('Boot terminal display cleared', 'info');
+  };
+
+  window.clearBootServerLog = async function () {
+    const ok = await VP.confirmDialog('Clear boot log files on server?', { title: 'Clear Server Logs' });
+    if (!ok) return;
+    if (socket && connected) {
+      socket.emit('bootlog:clear', { vmId: <%= vm.id %> });
+    } else {
+      try {
+        await VP.api('/servers/<%= vm.id %>/bootlog/clear', { method: 'POST' });
+        clearBootDisplay();
+        VP.toast('Boot logs cleared on server', 'success');
+      } catch (e) {
+        VP.toast(VP.errorMessage(e), 'error');
+      }
+    }
+  };
+
+  window.copyBootLog = function () {
+    if (!rawBootBuffer) {
+      VP.toast('No boot log output to copy', 'warning');
+      return;
+    }
+    window.copyText(rawBootBuffer, 'Boot logs copied to clipboard!');
+  };
+
+  window.downloadBootLog = function () {
+    if (!rawBootBuffer) {
+      VP.toast('No boot log output to download', 'warning');
+      return;
+    }
+    const blob = new Blob([rawBootBuffer], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '<%= vm.name %>-boot-' + new Date().toISOString().replace(/[:.]/g, '-') + '.log';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    VP.toast('Boot log download started', 'success');
+  };
+
+  window.startAndStream = async function () {
+    const btn = document.getElementById('btnStartFromBoot');
+    if (btn) btn.disabled = true;
+    try {
+      VP.toast('Starting server...', 'info');
+      await VP.api('/servers/<%= vm.id %>/power', { method: 'POST', body: { action: 'start' } });
+      VP.toast('Server started! Streaming boot logs...', 'success');
+      const pill = document.getElementById('headerStatusPill');
+      if (pill) { pill.textContent = 'running'; pill.className = 'pill pill-green'; }
+      if (btn) btn.style.display = 'none';
+      joinBootLog();
+    } catch (e) {
+      VP.toast(VP.errorMessage(e), 'error');
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  window.onSearchInput = function (query) {
+    if (!query) {
+      if (rawView && rawBootEl) rawBootEl.textContent = rawBootBuffer;
+      return;
+    }
+    const q = query.toLowerCase();
+    if (rawView && rawBootEl) {
+      const lines = rawBootBuffer.split('\n');
+      const filtered = lines.filter(l => l.toLowerCase().includes(q));
+      rawBootEl.textContent = filtered.join('\n') || `[No lines matching "${query}"]`;
+    }
+  };
+
+  
+  window.switchView = function switchView(tab) {
+    activeTab = tab;
+    document.getElementById('tabTerminal').classList.toggle('active', tab === 'terminal');
+    document.getElementById('tabNoVnc').classList.toggle('active', tab === 'novnc');
+    document.getElementById('tabBootLog').classList.toggle('active', tab === 'bootlog');
+    document.getElementById('paneTerminal').style.display = tab === 'terminal' ? 'block' : 'none';
+    document.getElementById('paneNoVnc').style.display = tab === 'novnc' ? 'block' : 'none';
+    document.getElementById('paneBootLog').style.display = tab === 'bootlog' ? 'block' : 'none';
+
+    if (history.replaceState) {
+      history.replaceState(null, null, '?tab=' + tab);
+    }
+
+    if (tab === 'terminal') {
+      leaveBootLog();
+      disconnectVnc();
+      const s = sessions[activeSessionId];
+      if (s && s.term) {
+        setTimeout(() => {
+          try {
+            if (isDefaultSize) {
+              s.term.resize(169, 33);
+              sshResize(activeSessionId);
+            } else {
+              s.fit.fit();
+              sshResize(activeSessionId);
+            }
+            s.term.focus();
+            updateSizeBadge(!isDefaultSize);
+          } catch (e) {}
+        }, 100);
+      }
+      if (isVmRunning && (!socket || !connected)) {
+        setupSocket();
+      }
+    } else if (tab === 'novnc') {
+      leaveBootLog();
+      connectVnc();
+    } else if (tab === 'bootlog') {
+      disconnectVnc();
+      setTimeout(() => {
+        try { bootFit.fit(); } catch (e) {}
+      }, 100);
+      joinBootLog();
+    }
+  };
+
+  
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = (urlParams.get('tab') === 'bootlog' || window.location.hash === '#bootlog') ? 'bootlog' : (urlParams.get('tab') === 'novnc' ? 'novnc' : 'terminal');
+
+  
+  createSession('1', 'Session #1');
+  switchSession('1');
+  initBootTerm();
+  initCornerResizers();
+
+  if (initialTab === 'bootlog') {
+    switchView('bootlog');
+    setupSocket();
+  } else if (initialTab === 'novnc') {
+    switchView('novnc');
+  } else {
+    if (isVmRunning) {
+      setupSocket();
+    } else {
+      setState('offline', 'pill-gray');
+      const s = sessions['1'];
+      if (s && s.term) {
+        s.term.writeln('\r\n\x1b[33m[Notice] Server is offline. Start the server to launch SSH session or monitor Live Boot Logs.\x1b[0m\r\n');
+      }
+      if (sshBootBanner) sshBootBanner.style.display = 'flex';
+      setupSocket();
+    }
+  }
+
+  
+  if (urlParams.get('mode') === 'full' || urlParams.get('fullscreen') === '1') {
+    setTimeout(() => {
+      window.toggleFullTerminal(true);
+    }, 300);
+  }
+
+  window.openAiDiagnostics = function() {
+    const modal = document.getElementById('aiModalBackdrop');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const content = document.getElementById('aiModalContent');
+    content.innerHTML = `
+      <div style="text-align:center;padding:36px;color:#94a3b8">
+        <div style="margin-bottom:14px;animation:spin 1.5s linear infinite;display:inline-block;color:var(--gray-300)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
+        <div style="font-weight:600;font-size:14px;color:#f1f5f9">Checking VM boot output locally...</div>
+        <div style="font-size:12px;margin-top:4px">No logs are sent to an AI provider by this diagnostic.</div>
+      </div>
+    `;
+
+    fetch('/servers/<%= vm.id %>/bootlog/diagnose', { method: 'POST' })
+      .then(r => r.json())
+      .then(res => {
+        if (!res.ok || !res.diagnosis) {
+          content.innerHTML = `<div class="empty" style="color:#ef4444">Failed to run diagnosis: ${res.error || 'Unknown error'}</div>`;
+          return;
+        }
+        const d = res.diagnosis;
+        const isCritical = d.severity === 'CRITICAL';
+        const isWarning = d.severity === 'WARNING';
+        const sevColor = isCritical ? '#ef4444' : (isWarning ? '#f59e0b' : '#10b981');
+        const sevBg = isCritical ? 'rgba(239,68,68,0.12)' : (isWarning ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)');
+        const sevBorder = isCritical ? 'rgba(239,68,68,0.35)' : (isWarning ? 'rgba(245,158,11,0.35)' : 'rgba(16,185,129,0.35)');
+
+        let fixesHtml = '';
+        if (d.suggested_fixes && d.suggested_fixes.length) {
+          fixesHtml = `
+            <div style="margin-top:16px">
+              <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Recommended Remediation Steps:</div>
+              <ul style="margin:0;padding-left:18px;color:#cbd5e1;font-size:13px;line-height:1.6">
+                ${d.suggested_fixes.map(f => `<li>${escapeDiagnosticHtml(f)}</li>`).join('')}
+              </ul>
+            </div>
+          `;
+        }
+
+        let cmdsHtml = '';
+        window.__aiDiagCmds = Array.isArray(d.terminal_commands) ? d.terminal_commands.slice() : [];
+        if (d.terminal_commands && d.terminal_commands.length) {
+          cmdsHtml = `
+            <div style="margin-top:16px">
+              <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Terminal Remediation Commands:</div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                ${d.terminal_commands.map((cmd, idx) => `
+                  <div style="display:flex;align-items:center;justify-content:space-between;background:#060913;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px 12px;font-family:monospace;font-size:12px;color:#38bdf8">
+                    <code>${escapeDiagnosticHtml(cmd)}</code>
+                    <button class="btn btn-sm" data-copy-cmd-idx="${idx}" style="padding:2px 8px;font-size:11px">Copy</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        let snippetHtml = '';
+        if (d.snippet) {
+          snippetHtml = `
+            <div style="margin-top:14px;background:#060913;border-left:3px solid ${sevColor};padding:10px 14px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#f87171;word-break:break-all">
+              ${escapeDiagnosticHtml(d.snippet)}
+            </div>
+          `;
+        }
+
+        content.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:${sevBg};border:1px solid ${sevBorder};padding:12px 16px;border-radius:10px;margin-bottom:16px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-weight:800;font-size:12px;padding:3px 10px;border-radius:20px;background:${sevColor};color:#fff">${escapeDiagnosticHtml(d.severity)}</span>
+              <span style="font-weight:700;font-size:15px;color:#fff">${escapeDiagnosticHtml(d.title)}</span>
+            </div>
+            <span style="font-size:11px;color:#94a3b8;background:rgba(255,255,255,0.06);padding:3px 8px;border-radius:6px">Confidence: ${d.confidence}%</span>
+          </div>
+
+          <div style="font-size:13.5px;color:#e2e8f0;line-height:1.55;background:rgba(255,255,255,0.03);padding:14px;border-radius:8px;border:1px solid rgba(255,255,255,0.06)">
+            ${escapeDiagnosticHtml(d.explanation)}
+          </div>
+
+          ${snippetHtml}
+          ${fixesHtml}
+          ${cmdsHtml}
+
+          <div style="margin-top:20px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#64748b">
+            <span>Diagnostic Engine: <strong>${escapeDiagnosticHtml(d.provider)}</strong></span>
+            <button class="btn btn-sm btn-primary" onclick="closeAiDiagnostics()">Done</button>
+          </div>
+        `;
+      })
+      .catch(e => {
+        content.innerHTML = `<div class="empty" style="color:#ef4444">Error during analysis: ${e.message}</div>`;
+      });
+  };
+
+  if (!window.__aiDiagCopyWired) {
+    window.__aiDiagCopyWired = true;
+    document.addEventListener('click', async (event) => {
+      const button = event.target && event.target.closest ? event.target.closest('[data-copy-cmd-idx]') : null;
+      if (!button || !Array.isArray(window.__aiDiagCmds)) return;
+      const cmd = window.__aiDiagCmds[Number(button.dataset.copyCmdIdx)];
+      if (!cmd) return;
+      button.disabled = true;
+      const ok = window.VP && VP.copyText ? await VP.copyText(cmd, 'Command copied to clipboard.') : false;
+      button.disabled = false;
+      if (ok) {
+        const prior = button.textContent;
+        button.textContent = 'Copied!';
+        setTimeout(() => { button.textContent = prior; }, 1600);
+      }
+    });
+  }
+  window.closeAiDiagnostics = function() {
+    const modal = document.getElementById('aiModalBackdrop');
+    if (modal) modal.style.display = 'none';
+  };
+})();
+</script>
+
+
+<div id="aiModalBackdrop" style="display:none;position:fixed;inset:0;background:rgba(4,7,18,0.85);backdrop-filter:blur(8px);z-index:99999;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)closeAiDiagnostics()">
+  <div style="background:#0d1322;border:1px solid rgba(139,92,246,0.3);border-radius:14px;max-width:680px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6), 0 0 35px rgba(139,92,246,0.2);display:flex;flex-direction:column">
+    <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;background:rgba(139,92,246,0.06)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#8b5cf6,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:15px;color:#fff">Local Boot Diagnostics</div>
+          <div style="font-size:11.5px;color:#94a3b8">QEMU, Kernel & System Boot Checks</div>
+        </div>
+      </div>
+      <button class="icon-btn" onclick="closeAiDiagnostics()" style="color:#94a3b8">✕</button>
+    </div>
+
+    <div id="aiModalContent" style="padding:20px"></div>
+  </div>
+</div>

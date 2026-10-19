@@ -1,0 +1,55 @@
+<%- include('../partials/head', { title: `Incident #${incident.id}` }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+<div class="main">
+  <h2 style="font-size:22px" class="mb-3">Incident #<%= incident.id %> — <%= incident.category %></h2>
+  <div class="card">
+    <p>
+      <span class="pill <%= incident.severity === 'critical' ? 'pill-red' : incident.severity === 'high' ? 'pill-orange' : 'pill-blue' %>"><%= incident.severity %></span>
+      <span class="pill pill-gray"><%= incident.status %></span>
+    </p>
+    <p><strong>Resource:</strong> <%= incident.resource_type %> <%= incident.resource_id %><% if (incident.resource_name) { %> (<%= incident.resource_name %>)<% } %></p>
+    <p class="muted">First detected <%= new Date(incident.first_detected_at).toLocaleString() %> · last observed <%= new Date(incident.last_observed_at).toLocaleString() %> · occurrences: <%= incident.occurrence_count || 1 %> · source: <%= incident.source || 'monitor' %></p>
+    <% if (incident.health) { %><p><strong>Last known health:</strong> <%= incident.health %></p><% } %>
+    <% if (incident.exit_code !== null && incident.exit_code !== undefined) { %><p><strong>Exit code:</strong> <%= incident.exit_code %></p><% } %>
+    <% if (incident.resolution_summary) { %><p><strong>Resolution:</strong> <%= incident.resolution_summary %></p><% } %>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+      <button type="button" class="btn btn-primary" id="askAssistantBtn">Ask Assistant</button>
+      <% if (incident.resource_type === 'vm') { %><a class="btn" href="/servers/<%= incident.resource_id %>">Open resource</a><% } %>
+      <% if (incident.status !== 'resolved') { %>
+        <button type="button" class="btn" id="ackBtn">Acknowledge</button>
+      <% } %>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Recovery attempts</div>
+    <% if (!(incident.recovery_attempts || []).length) { %><p class="muted">No recovery attempts recorded yet.</p><% } else { %>
+    <ul>
+      <% for (const a of incident.recovery_attempts) { %>
+        <li><%= a.at ? new Date(a.at).toLocaleString() : '' %> — <strong><%= a.action %></strong> (<%= a.outcome %>)<% if (a.detail) { %> <span class="muted"><%= a.detail %></span><% } %></li>
+      <% } %>
+    </ul>
+    <% } %>
+  </div>
+</div>
+<%- include('../partials/music') %>
+<%- include('../partials/foot') %>
+<script>
+(function () {
+  const incident = <%- JSON.stringify({ id: incident.id, category: incident.category, severity: incident.severity, status: incident.status, resource_type: incident.resource_type, resource_id: incident.resource_id, resource_name: incident.resource_name || '', first_detected_at: incident.first_detected_at, last_observed_at: incident.last_observed_at }) %>;
+  document.getElementById('askAssistantBtn').addEventListener('click', () => {
+    const prompt = `Investigate incident #${incident.id} (${incident.category}, severity ${incident.severity}, status ${incident.status}) on ${incident.resource_type} ${incident.resource_id}${incident.resource_name ? ` (${incident.resource_name})` : ''}. First detected ${incident.first_detected_at}, last observed ${incident.last_observed_at}. Inspect the available console logs, recent crash output, service status, configuration metadata, and relevant resource metrics. Identify the most likely root cause, explain the evidence, and recommend the safest recovery steps. Do not restart the service or change any configuration without the required authorization.`;
+    if (window.openVPAI) window.openVPAI(prompt, false, { incidentId: incident.id });
+    else if (window.VP) window.VP.toast('Open the AI assistant from the sidebar to investigate.', 'info');
+  });
+  const ack = document.getElementById('ackBtn');
+  if (ack) ack.addEventListener('click', async () => {
+    try {
+      await VP.api(`/incidents/${incident.id}/status`, { method: 'POST', body: { status: 'acknowledged' } });
+      VP.toast('Incident acknowledged.', 'success');
+      setTimeout(() => location.reload(), 600);
+    } catch (e) { VP.toast(VP.errorMessage(e), 'error'); }
+  });
+})();
+</script>

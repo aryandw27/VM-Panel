@@ -1,0 +1,51 @@
+<%- include('../partials/head', { title: 'Incidents' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+<div class="main">
+  <h2 style="font-size:22px" class="mb-3">Incidents</h2>
+  <div class="card">
+    <form method="get" action="/incidents" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <label>Status
+        <select name="status" onchange="this.form.submit()">
+          <% for (const s of ['active', 'detected', 'investigating', 'recovering', 'acknowledged', 'resolved']) { %>
+            <option value="<%= s %>" <%= query.status === s ? 'selected' : '' %>><%= s %></option>
+          <% } %>
+        </select>
+      </label>
+      <label>Severity
+        <select name="severity" onchange="this.form.submit()">
+          <option value="">All</option>
+          <% for (const s of ['critical', 'high', 'medium', 'low']) { %>
+            <option value="<%= s %>" <%= query.severity === s ? 'selected' : '' %>><%= s %></option>
+          <% } %>
+        </select>
+      </label>
+    </form>
+    <% if (!incidents.length) { %>
+      <div class="empty"><p>No incidents match this filter.</p><p class="muted">Incidents appear here only when a monitored resource actually fails. Planned stops never create one.</p></div>
+    <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Severity</th><th>Resource</th><th>Category</th><th>Status</th><th>Detected</th><th></th></tr></thead>
+        <tbody>
+        <% for (const i of incidents) { %>
+          <tr>
+            <td>#<%= i.id %></td>
+            <td><span class="pill <%= i.severity === 'critical' ? 'pill-red' : i.severity === 'high' ? 'pill-orange' : i.severity === 'medium' ? 'pill-blue' : 'pill-gray' %>"><%= i.severity %></span></td>
+            <td><%= i.resource_type %> <%= i.resource_id %></td>
+            <td class="muted"><%= i.category %></td>
+            <td><span class="pill pill-gray"><%= i.status %></span></td>
+            <td class="muted"><%= new Date(i.first_detected_at).toLocaleString() %></td>
+            <td><a class="btn btn-sm" href="/incidents/<%= i.id %>">Open</a></td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin-top:12px">Showing <%= incidents.length %> of <%= total %>.</p>
+    <% } %>
+  </div>
+</div>
+<%- include('../partials/music') %>
+<%- include('../partials/foot') %>

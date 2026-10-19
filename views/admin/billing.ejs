@@ -1,0 +1,534 @@
+<%- include('../partials/head', { title: 'Billing & Resource Plans' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+
+<div class="main">
+  
+  <div class="flex-between mb-3" style="flex-wrap:wrap;gap:12px">
+    <div>
+      <h2 style="font-size:22px;display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Billing &amp; Resource Plans
+      </h2>
+      <div class="muted text-sm">Manage compute tiers, client invoice ledger, promo coupons, and payment gateways</div>
+    </div>
+    <div class="flex" style="gap:8px">
+      <button class="btn btn-sm btn-primary" onclick="openCreatePlanModal()" style="display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+        Create Plan
+      </button>
+      <button class="btn btn-sm" onclick="openCreateInvoiceModal()" style="display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        New Invoice
+      </button>
+      <button class="btn btn-sm" onclick="openCreateCouponModal()" style="display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        Add Coupon
+      </button>
+    </div>
+  </div>
+
+  
+  <div class="flex mb-3" style="gap:8px;border-bottom:1px solid var(--border);padding-bottom:10px">
+    <button class="tab-btn active" id="tabBtnPlans" onclick="switchBillingTab('plans')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      Compute Plans (<%= plans.length %>)
+    </button>
+    <button class="tab-btn" id="tabBtnInvoices" onclick="switchBillingTab('invoices')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Invoices Ledger (<%= invoices.length %>)
+    </button>
+    <button class="tab-btn" id="tabBtnCoupons" onclick="switchBillingTab('coupons')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      Discount Coupons (<%= coupons.length %>)
+    </button>
+    <button class="tab-btn" id="tabBtnGateways" onclick="switchBillingTab('gateways')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Gateway &amp; Currency
+    </button>
+  </div>
+
+  
+  <div id="tabPlans" class="tab-content active">
+    <div class="grid grid-3" style="gap:16px">
+      <% if (plans.length === 0) { %>
+        <div class="empty" style="grid-column:1/-1;padding:40px">
+          <div style="margin-bottom:8px;color:var(--gray-400)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32" style="display:inline-block"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <div class="muted">No resource plans configured. Click "+ Create Plan" to set up your first tier.</div>
+        </div>
+      <% } else { %>
+        <% for (const p of plans) { %>
+          <div class="card" style="position:relative;display:flex;flex-direction:column;justify-content:space-between">
+            <div>
+              <div class="flex-between mb-2">
+                <div>
+                  <div style="font-weight:700;font-size:16px;color:#fff"><%= p.name %></div>
+                  <div class="muted text-sm" style="font-family:monospace">slug: <%= p.slug %></div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:20px;font-weight:800;color:var(--accent)">
+                    <%= billingSettings.currency_symbol %><%= p.price_monthly.toFixed(2) %>
+                  </div>
+                  <div class="muted" style="font-size:10px;text-transform:uppercase">/ Month</div>
+                </div>
+              </div>
+
+              <div class="muted text-sm mb-3" style="min-height:36px"><%= p.description || 'No description provided' %></div>
+
+              
+              <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+                <div>
+                  <div class="muted" style="font-size:11px">Virtual CPU</div>
+                  <div style="font-weight:700;font-size:13.5px;color:#fff"><%= p.cpus %> vCPU Core<%= p.cpus > 1 ? 's' : '' %></div>
+                </div>
+                <div>
+                  <div class="muted" style="font-size:11px">Memory (RAM)</div>
+                  <div style="font-weight:700;font-size:13.5px;color:#fff"><%= p.memory >= 1024 ? (p.memory / 1024) + ' GB' : p.memory + ' MB' %></div>
+                </div>
+                <div>
+                  <div class="muted" style="font-size:11px">NVMe Storage</div>
+                  <div style="font-weight:700;font-size:13.5px;color:#fff"><%= p.disk %> GB Disk</div>
+                </div>
+                <div>
+                  <div class="muted" style="font-size:11px">Bandwidth</div>
+                  <div style="font-weight:700;font-size:13.5px;color:#fff"><%= p.bandwidth ? (p.bandwidth >= 1000 ? (p.bandwidth / 1000) + ' TB' : p.bandwidth + ' GB') : 'Unlimited' %></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex-between" style="border-top:1px solid var(--border);padding-top:12px">
+              <span class="pill <%= p.is_active ? 'pill-green' : 'pill-gray' %>">
+                <%= p.is_active ? 'Active Tier' : 'Hidden' %>
+              </span>
+              <div class="flex" style="gap:6px">
+                <a href="/admin/servers/create?plan=<%= p.slug %>" class="btn btn-sm btn-primary" title="Deploy server with this plan">Deploy</a>
+                <button class="btn btn-sm btn-danger" onclick="deletePlan(<%= p.id %>)">Delete</button>
+              </div>
+            </div>
+          </div>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
+
+  
+  <div id="tabInvoices" class="tab-content" style="display:none">
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Client User</th>
+              <th>Service / Tier</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Due Date</th>
+              <th>Paid Timestamp</th>
+              <th class="right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (invoices.length === 0) { %>
+              <tr>
+                <td colspan="8" style="text-align:center;padding:32px" class="muted">No invoices generated yet.</td>
+              </tr>
+            <% } else { %>
+              <% for (const inv of invoices) { %>
+                <tr>
+                  <td><strong style="color:var(--accent);font-family:monospace"><%= inv.invoice_number %></strong></td>
+                  <td>
+                    <div style="font-weight:600;color:#fff"><%= inv.username %></div>
+                    <div class="muted text-sm">ID: <%= inv.user_id || 'N/A' %></div>
+                  </td>
+                  <td><%= inv.plan_name %></td>
+                  <td><strong style="color:#fff"><%= billingSettings.currency_symbol %><%= inv.amount.toFixed(2) %></strong> <%= inv.currency %></td>
+                  <td>
+                    <% if (inv.status === 'paid') { %>
+                      <span class="pill pill-green font-bold">PAID</span>
+                    <% } else if (inv.status === 'pending') { %>
+                      <span class="pill pill-yellow font-bold">PENDING</span>
+                    <% } else { %>
+                      <span class="pill pill-red font-bold"><%= inv.status.toUpperCase() %></span>
+                    <% } %>
+                  </td>
+                  <td class="muted text-sm"><%= new Date(inv.due_date).toLocaleDateString() %></td>
+                  <td class="muted text-sm"><%= inv.paid_at ? new Date(inv.paid_at).toLocaleString() : '—' %></td>
+                  <td class="right">
+                    <div class="flex right" style="gap:6px">
+                      <% if (inv.status !== 'paid') { %>
+                        <button class="btn btn-sm btn-green" onclick="setInvoiceStatus(<%= inv.id %>, 'paid')">Mark Paid</button>
+                      <% } else { %>
+                        <button class="btn btn-sm" onclick="setInvoiceStatus(<%= inv.id %>, 'pending')">Reopen</button>
+                      <% } %>
+                      <button class="btn btn-sm btn-danger" onclick="deleteInvoice(<%= inv.id %>)">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              <% } %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="tabCoupons" class="tab-content" style="display:none">
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Promo Code</th>
+              <th>Discount Value</th>
+              <th>Redemptions</th>
+              <th>Status</th>
+              <th>Expiration</th>
+              <th class="right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (coupons.length === 0) { %>
+              <tr>
+                <td colspan="6" style="text-align:center;padding:32px" class="muted">No promo coupons created yet.</td>
+              </tr>
+            <% } else { %>
+              <% for (const c of coupons) { %>
+                <tr>
+                  <td>
+                    <span style="font-family:monospace;font-weight:800;font-size:14px;background:rgba(255,255,255,0.06);border:1px dashed var(--accent);padding:4px 10px;border-radius:6px;color:#fff">
+                      <%= c.code %>
+                    </span>
+                  </td>
+                  <td>
+                    <strong style="color:var(--accent)">
+                      <%= c.discount_type === 'percentage' ? c.discount_value + '%' : billingSettings.currency_symbol + c.discount_value %> OFF
+                    </strong>
+                  </td>
+                  <td><%= c.used_count %> / <%= c.max_uses || '∞' %> uses</td>
+                  <td>
+                    <span class="pill <%= c.is_active ? 'pill-green' : 'pill-gray' %>">
+                      <%= c.is_active ? 'Active' : 'Disabled' %>
+                    </span>
+                  </td>
+                  <td class="muted text-sm"><%= c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Never expires' %></td>
+                  <td class="right">
+                    <button class="btn btn-sm btn-danger" onclick="deleteCoupon(<%= c.id %>)">Delete</button>
+                  </td>
+                </tr>
+              <% } %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="tabGateways" class="tab-content" style="display:none">
+    <div class="grid grid-2" style="gap:16px">
+      <div class="card">
+        <div class="card-title mb-3">Currency & Regional Preferences</div>
+        <div class="form-group mb-3">
+          <label>Default Currency Code</label>
+          <select id="setCurrency">
+            <option value="USD" <%= billingSettings.currency === 'USD' ? 'selected' : '' %>>USD - US Dollar ($)</option>
+            <option value="EUR" <%= billingSettings.currency === 'EUR' ? 'selected' : '' %>>EUR - Euro (€)</option>
+            <option value="INR" <%= billingSettings.currency === 'INR' ? 'selected' : '' %>>INR - Indian Rupee (₹)</option>
+            <option value="GBP" <%= billingSettings.currency === 'GBP' ? 'selected' : '' %>>GBP - British Pound (£)</option>
+            <option value="CAD" <%= billingSettings.currency === 'CAD' ? 'selected' : '' %>>CAD - Canadian Dollar (C$)</option>
+          </select>
+        </div>
+        <div class="form-group mb-3">
+          <label>Currency Symbol</label>
+          <input type="text" id="setCurrencySymbol" value="<%= billingSettings.currency_symbol %>" />
+        </div>
+        <button class="btn btn-primary" onclick="saveBillingSettings()">Save Currency Settings</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title mb-3">Payment Methods & Gateways</div>
+        <div class="check mb-2">
+          <input type="checkbox" id="setBankTransfer" <%= billingSettings.bank_transfer_enabled ? 'checked' : '' %> />
+          <strong>Manual Bank Transfer / UPI / Wire</strong>
+        </div>
+        <div class="form-group mb-3">
+          <label>Bank Wire / Payment Instructions</label>
+          <textarea id="setBankDetails" rows="4" placeholder="Enter bank account name, IBAN/IFSC, and routing number..."><%= billingSettings.bank_details %></textarea>
+        </div>
+        <div class="check mb-2">
+          <input type="checkbox" id="setStripe" <%= billingSettings.stripe_enabled ? 'checked' : '' %> />
+          <strong>Stripe Checkout Integration (Credit / Debit Cards)</strong>
+        </div>
+        <div class="check mb-3">
+          <input type="checkbox" id="setPaypal" <%= billingSettings.paypal_enabled ? 'checked' : '' %> />
+          <strong>PayPal Standard & Express</strong>
+        </div>
+        <button class="btn btn-primary" onclick="saveBillingSettings()">Save Gateway Settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalCreatePlan" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="flex-between mb-3">
+      <div class="card-title" style="margin:0">Create Resource Plan Tier</div>
+      <button class="icon-btn" onclick="closeModals()">✕</button>
+    </div>
+    <div class="form-group mb-2"><label>Plan Title</label><input id="pName" placeholder="e.g. Standard Pro" /></div>
+    <div class="form-group mb-2"><label>Slug Identifier</label><input id="pSlug" placeholder="e.g. standard-pro" /></div>
+    <div class="form-group mb-2"><label>Description</label><input id="pDesc" placeholder="e.g. Optimal for web servers and Docker" /></div>
+    <div class="grid grid-2" style="gap:10px">
+      <div class="form-group mb-2"><label>vCPU Cores</label><input type="number" id="pCpus" value="2" min="1" max="64" /></div>
+      <div class="form-group mb-2"><label>Memory RAM (MB)</label><input type="number" id="pRam" value="4096" min="256" step="512" /></div>
+      <div class="form-group mb-2"><label>NVMe Disk (GB)</label><input type="number" id="pDisk" value="50" min="5" /></div>
+      <div class="form-group mb-2"><label>Monthly Price ($)</label><input type="number" id="pPrice" value="15.00" step="0.50" /></div>
+    </div>
+    <div class="flex right mt-3" style="gap:8px">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreatePlan()">Create Plan</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalCreateInvoice" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="flex-between mb-3">
+      <div class="card-title" style="margin:0">Generate Client Invoice</div>
+      <button class="icon-btn" onclick="closeModals()">✕</button>
+    </div>
+    <div class="form-group mb-2">
+      <label>Target User Account</label>
+      <select id="invUser">
+        <% for (const u of users) { %>
+          <option value="<%= u.id %>"><%= u.username %> (<%= u.email %>)</option>
+        <% } %>
+      </select>
+    </div>
+    <div class="form-group mb-2"><label>Service / Line Item</label><input id="invPlan" placeholder="e.g. Standard Pro Monthly Subscription" /></div>
+    <div class="grid grid-2" style="gap:10px">
+      <div class="form-group mb-2"><label>Amount</label><input type="number" id="invAmount" value="15.00" step="0.01" /></div>
+      <div class="form-group mb-2">
+        <label>Payment Status</label>
+        <select id="invStatus">
+          <option value="pending">PENDING</option>
+          <option value="paid">PAID</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex right mt-3" style="gap:8px">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreateInvoice()">Generate Invoice</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalCreateCoupon" class="modal-backdrop" style="display:none">
+  <div class="modal-card">
+    <div class="flex-between mb-3">
+      <div class="card-title" style="margin:0">Add Promo Coupon</div>
+      <button class="icon-btn" onclick="closeModals()">✕</button>
+    </div>
+    <div class="form-group mb-2"><label>Coupon Promo Code</label><input id="cpCode" placeholder="e.g. VPANEL50" style="text-transform:uppercase" /></div>
+    <div class="grid grid-2" style="gap:10px">
+      <div class="form-group mb-2">
+        <label>Discount Type</label>
+        <select id="cpType">
+          <option value="percentage">Percentage (%)</option>
+          <option value="fixed">Fixed Dollar ($)</option>
+        </select>
+      </div>
+      <div class="form-group mb-2"><label>Discount Value</label><input type="number" id="cpVal" value="20" step="1" /></div>
+      <div class="form-group mb-2"><label>Max Redemptions</label><input type="number" id="cpMax" value="100" /></div>
+    </div>
+    <div class="flex right mt-3" style="gap:8px">
+      <button class="btn" onclick="closeModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreateCoupon()">Save Coupon</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13.5px;
+  transition: all 0.15s ease;
+}
+.tab-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+.tab-btn.active {
+  color: #fff;
+  background: var(--glass);
+  border-color: var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 18, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-card {
+  background: #0d1322;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  padding: 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+</style>
+
+<script>
+function switchBillingTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+  if (tab === 'plans') {
+    document.getElementById('tabBtnPlans').classList.add('active');
+    document.getElementById('tabPlans').style.display = 'block';
+  } else if (tab === 'invoices') {
+    document.getElementById('tabBtnInvoices').classList.add('active');
+    document.getElementById('tabInvoices').style.display = 'block';
+  } else if (tab === 'coupons') {
+    document.getElementById('tabBtnCoupons').classList.add('active');
+    document.getElementById('tabCoupons').style.display = 'block';
+  } else if (tab === 'gateways') {
+    document.getElementById('tabBtnGateways').classList.add('active');
+    document.getElementById('tabGateways').style.display = 'block';
+  }
+}
+
+function openCreatePlanModal() {
+  document.getElementById('modalCreatePlan').style.display = 'flex';
+}
+function openCreateInvoiceModal() {
+  document.getElementById('modalCreateInvoice').style.display = 'flex';
+}
+function openCreateCouponModal() {
+  document.getElementById('modalCreateCoupon').style.display = 'flex';
+}
+function closeModals() {
+  document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none');
+}
+
+function submitCreatePlan() {
+  const name = document.getElementById('pName').value.trim();
+  const slug = document.getElementById('pSlug').value.trim();
+  const description = document.getElementById('pDesc').value.trim();
+  const cpus = document.getElementById('pCpus').value;
+  const memory = document.getElementById('pRam').value;
+  const disk = document.getElementById('pDisk').value;
+  const price_monthly = document.getElementById('pPrice').value;
+
+  if (!name) { VP.toast('Enter a plan title first.', 'warning'); return; }
+  fetch('/admin/billing/plans/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, slug, description, cpus, memory, disk, price_monthly })
+  }).then(r => r.json()).then(res => {
+    if (!res.ok) VP.toast(VP.errorMessage({ message: res.error || 'Failed to create plan' }), 'error'); else VP.toast('Plan created.', 'success');
+    else window.location.reload();
+  });
+}
+
+function deletePlan(id) {
+  if (!await VP.confirmDialog('Delete this resource plan? Servers using it may be affected.', { title: 'Delete plan?', confirmText: 'Delete plan' })) return;
+  fetch('/admin/billing/plans/' + id + '/delete', { method: 'POST' })
+    .then(r => r.json())
+    .then(() => window.location.reload());
+}
+
+function submitCreateInvoice() {
+  const sel = document.getElementById('invUser');
+  const user_id = sel.value;
+  const username = sel.options[sel.selectedIndex].text.split(' ')[0];
+  const plan_name = document.getElementById('invPlan').value.trim() || 'Custom Invoice';
+  const amount = document.getElementById('invAmount').value;
+  const status = document.getElementById('invStatus').value;
+
+  fetch('/admin/billing/invoices/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id, username, plan_name, amount, status })
+  }).then(r => r.json()).then(res => {
+    if (!res.ok) VP.toast(VP.errorMessage({ message: res.error || 'Failed to create invoice' }), 'error'); else VP.toast('Invoice created.', 'success');
+    else window.location.reload();
+  });
+}
+
+function setInvoiceStatus(id, status) {
+  fetch('/admin/billing/invoices/' + id + '/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  }).then(() => window.location.reload());
+}
+
+function deleteInvoice(id) {
+  if (!await VP.confirmDialog('Delete this invoice record? This cannot be undone.', { title: 'Delete invoice?', confirmText: 'Delete invoice' })) return;
+  fetch('/admin/billing/invoices/' + id + '/delete', { method: 'POST' })
+    .then(() => window.location.reload());
+}
+
+function submitCreateCoupon() {
+  const code = document.getElementById('cpCode').value.trim();
+  const discount_type = document.getElementById('cpType').value;
+  const discount_value = document.getElementById('cpVal').value;
+  const max_uses = document.getElementById('cpMax').value;
+
+  if (!code) { VP.toast('Enter a coupon code first.', 'warning'); return; }
+  fetch('/admin/billing/coupons/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, discount_type, discount_value, max_uses })
+  }).then(r => r.json()).then(res => {
+    if (!res.ok) VP.toast(VP.errorMessage({ message: res.error || 'Failed to create coupon' }), 'error'); else VP.toast('Coupon created.', 'success');
+    else window.location.reload();
+  });
+}
+
+function deleteCoupon(id) {
+  if (!await VP.confirmDialog('Delete this promo coupon? It will no longer be redeemable.', { title: 'Delete coupon?', confirmText: 'Delete coupon' })) return;
+  fetch('/admin/billing/coupons/' + id + '/delete', { method: 'POST' })
+    .then(() => window.location.reload());
+}
+
+function saveBillingSettings() {
+  const currency = document.getElementById('setCurrency').value;
+  const currency_symbol = document.getElementById('setCurrencySymbol').value;
+  const bank_transfer_enabled = document.getElementById('setBankTransfer').checked;
+  const bank_details = document.getElementById('setBankDetails').value;
+  const stripe_enabled = document.getElementById('setStripe').checked;
+  const paypal_enabled = document.getElementById('setPaypal').checked;
+
+  fetch('/admin/billing/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currency, currency_symbol, bank_transfer_enabled, bank_details, stripe_enabled, paypal_enabled })
+  }).then(r => r.json()).then(res => {
+    VP.toast(res.message || 'Settings saved.', 'success');
+  });
+}
+</script>
+
