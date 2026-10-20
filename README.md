@@ -109,6 +109,13 @@ sudo bash install.sh
 # Use `sudo bash install.sh --menu` to open the maintenance menu instead.
 # Allow the chosen web port and API port through your VPS provider firewall/security group.
 
+# If an existing `.env` points to an unreachable local MongoDB, the installer
+# tries to start the installed MongoDB service or existing `mongodb` container.
+# If neither exists, it provisions a local-only Docker MongoDB using the
+# preserved URI credentials and `mongodb_data` volume. Non-local MongoDB URIs
+# are never replaced; restore access to that database before retrying. Do not
+# delete `.env` or MongoDB volumes as a troubleshooting step.
+
 # Or 1-line unattended install
 sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.local --admin-pass 'your_secure_password'
 ```

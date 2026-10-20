@@ -87,6 +87,22 @@ set_env_value() {
   rm -f "$tmp"
 }
 
+mongo_connection_works() {
+  node -e "require('dotenv').config(); const { MongoClient } = require('mongodb'); const c = new MongoClient(process.env.MONGO_URI || '', { serverSelectionTimeoutMS: 2000 }); c.connect().then(() => c.close()).then(() => process.exit(0)).catch(() => process.exit(1));" >/dev/null 2>&1
+}
+
+mongo_uri_is_local() {
+  node -e "require('dotenv').config(); try { const host = new URL(process.env.MONGO_URI || '').hostname.toLowerCase(); process.exit(['localhost', '127.0.0.1', '::1', '[::1]'].includes(host) ? 0 : 1); } catch (_) { process.exit(1); }" >/dev/null 2>&1
+}
+
+mongo_uri_port() {
+  node -e "require('dotenv').config(); try { process.stdout.write(String(new URL(process.env.MONGO_URI || '').port || 27017)); } catch (_) { process.exit(1); }"
+}
+
+mongo_uri_auth_base64() {
+  node -e "require('dotenv').config(); try { const uri = new URL(process.env.MONGO_URI || ''); process.stdout.write(Buffer.from(JSON.stringify({ username: decodeURIComponent(uri.username), password: decodeURIComponent(uri.password) })).toString('base64')); } catch (_) { process.exit(1); }"
+}
+
 port_is_available() {
   local port="$1"
   if command -v ss >/dev/null 2>&1; then
@@ -321,9 +337,134 @@ EOF
 
   if [ "$mongo_ready" -eq 0 ]; then
     if [ "$env_preexisting" -eq 1 ]; then
-      log_err "Configured MongoDB is unreachable. Check MONGO_URI in .env; existing database settings were preserved."
-      exit 1
+      if ! mongo_uri_is_local; then
+        log_err "Configured MongoDB is unreachable. MONGO_URI points to a non-local database; check that server. Existing database settings were preserved."
+        exit 1
+      fi
+
+      log_info "Existing .env points to local MongoDB. Checking for an installed MongoDB service..."
+      systemctl start mongod >/dev/null 2>&1 || systemctl start mongodb >/dev/null 2>&1 || true
+      if mongo_connection_works; then
+        log_ok "Started the existing local MongoDB service."
+        mongo_ready=1
+      fi
+
+      if [ "$mongo_ready" -eq 0 ] && command -v docker >/dev/null 2>&1 && docker ps -a --format "{{.Names}}" | grep -Fxq "mongodb"; then
+        log_info "Starting the existing MongoDB container without changing its data or credentials..."
+        docker start mongodb >/dev/null || true
+        local existing_attempt=0
+        while [ "$existing_attempt" -lt 30 ]; do
+          if mongo_connection_works; then
+            log_ok "Existing MongoDB container is online and authenticated."
+            mongo_ready=1
+            break
+          fi
+          sleep 1
+          existing_attempt=$((existing_attempt + 1))
+        done
+        if [ "$mongo_ready" -eq 0 ]; then
+          log_err "Existing MongoDB container did not accept the preserved MONGO_URI. Its container and data were left untouched."
+          exit 1
+        fi
+      fi
+
+      if [ "$mongo_ready" -eq 0 ]; then
+        log_info "No local MongoDB service or container is available. Installing Docker to provide the configured local database..."
+        if ! command -v docker >/dev/null 2>&1; then
+          apt-get install -y --no-install-recommends docker.io
+        fi
+        systemctl enable --now docker 2>/dev/null || service docker start
+        if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+          log_err "Docker could not start. Check the Docker service before continuing."
+          exit 1
+        fi
+        if docker ps -a --format "{{.Names}}" | grep -Fxq "mongodb"; then
+          log_info "Starting the existing MongoDB container without changing its data or credentials..."
+          docker start mongodb >/dev/null || true
+          local recovered_attempt=0
+          while [ "$recovered_attempt" -lt 30 ]; do
+            if mongo_connection_works; then
+              log_ok "Existing MongoDB container is online and authenticated."
+              mongo_ready=1
+              break
+            fi
+            sleep 1
+            recovered_attempt=$((recovered_attempt + 1))
+          done
+          if [ "$mongo_ready" -eq 0 ]; then
+            log_err "Existing MongoDB container did not accept the preserved MONGO_URI. Its container and data were left untouched."
+            exit 1
+          fi
+        fi
+
+        if [ "$mongo_ready" -eq 0 ]; then
+        local mongo_port mongo_auth mongo_user mongo_password mongo_env_file
+        mongo_port="$(mongo_uri_port)" || {
+          log_err "Could not read the local MongoDB port from MONGO_URI."
+          exit 1
+        }
+        if ! [[ "$mongo_port" =~ ^[0-9]+$ ]] || [ "$mongo_port" -lt 1 ] || [ "$mongo_port" -gt 65535 ]; then
+          log_err "MONGO_URI contains an invalid local MongoDB port."
+          exit 1
+        fi
+        mongo_auth="$(mongo_uri_auth_base64)" || {
+          log_err "Could not read MongoDB credentials from the preserved MONGO_URI."
+          exit 1
+        }
+        mongo_user="$(node -e "process.stdout.write(JSON.parse(Buffer.from(process.argv[1], 'base64').toString()).username)" "$mongo_auth")"
+        mongo_password="$(node -e "process.stdout.write(JSON.parse(Buffer.from(process.argv[1], 'base64').toString()).password)" "$mongo_auth")"
+        if [[ "$mongo_user$mongo_password" == *$'\n'* || "$mongo_user$mongo_password" == *$'\r'* ]]; then
+          log_err "Multiline MongoDB credentials cannot be used to provision a local Docker database."
+          exit 1
+        fi
+
+        if [ -n "$mongo_user" ]; then
+          mongo_env_file="$(mktemp)"
+          chmod 600 "$mongo_env_file"
+          printf 'MONGO_INITDB_ROOT_USERNAME=%s\nMONGO_INITDB_ROOT_PASSWORD=%s\n' "$mongo_user" "$mongo_password" > "$mongo_env_file"
+          if ! docker run -d \
+            --name mongodb \
+            -p "127.0.0.1:${mongo_port}:27017" \
+            --env-file "$mongo_env_file" \
+            -v mongodb_data:/data/db \
+            --restart unless-stopped \
+            mongo:latest >/dev/null; then
+            rm -f "$mongo_env_file"
+            log_err "MongoDB container could not be created. Existing .env settings and database volumes were preserved."
+            exit 1
+          fi
+          rm -f "$mongo_env_file"
+        else
+          if ! docker run -d \
+            --name mongodb \
+            -p "127.0.0.1:${mongo_port}:27017" \
+            -v mongodb_data:/data/db \
+            --restart unless-stopped \
+            mongo:latest >/dev/null; then
+            log_err "MongoDB container could not be created. Existing .env settings and database volumes were preserved."
+            exit 1
+          fi
+        fi
+
+        log_info "Waiting for the configured local MongoDB database..."
+        local local_attempt=0
+        while [ "$local_attempt" -lt 30 ]; do
+          if mongo_connection_works; then
+            log_ok "Local MongoDB is online using the preserved MONGO_URI."
+            mongo_ready=1
+            break
+          fi
+          sleep 1
+          local_attempt=$((local_attempt + 1))
+        done
+        if [ "$mongo_ready" -eq 0 ]; then
+          log_err "MongoDB did not accept the existing MONGO_URI. Its container and volume were left in place; check the URI credentials and Docker logs."
+          exit 1
+        fi
+        fi
+      fi
     fi
+    if [ "$mongo_ready" -eq 0 ]; then
     if command -v docker >/dev/null 2>&1 && docker ps -a --filter "name=mongodb" --format "{{.Names}}" | grep -q "^mongodb$"; then
       log_err "A MongoDB Docker container already exists but is unreachable with the configured URI. Resolve its credentials before continuing."
       exit 1
@@ -369,6 +510,7 @@ EOF
     if [ "$mongo_ready" -eq 0 ]; then
       log_err "MongoDB did not become ready within 30 seconds. Check Docker logs and the MONGO_URI in .env."
       exit 1
+    fi
     fi
   fi
 
