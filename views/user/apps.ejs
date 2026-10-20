@@ -1,0 +1,73 @@
+<%- include('../partials/head', { title: 'App Store', styles: ['/css/app-store.css'] }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+<main class="main app-store">
+  <header class="app-store-heading">
+    <div>
+      <p class="app-store-eyebrow">SILICONHOST / MARKETPLACE</p>
+      <h1>VPS App Store</h1>
+      <p class="muted">Install reviewed applications or run your own trusted installer on a VM you own.</p>
+    </div>
+    <a class="btn btn-outline" href="/dashboard">Back to dashboard</a>
+  </header>
+
+  <section class="app-store-notice" aria-label="Installer security notice">
+    <i data-lucide="shield-check"></i>
+    <p><strong>Installers run with administrator privileges inside your VM.</strong> Review the publisher and script before continuing. Docker-based installs require a Debian or Ubuntu guest and an internet connection.</p>
+  </section>
+
+  <% if (!vms.length) { %>
+    <section class="card app-store-empty">
+      <i data-lucide="server"></i>
+      <h2>Deploy a VM to get started</h2>
+      <p class="muted">The store only installs software on VMs owned by your account.</p>
+      <a class="btn btn-primary" href="/dashboard">View your servers</a>
+    </section>
+  <% } else { %>
+    <section class="card app-store-target">
+      <label for="appStoreVm">Install on</label>
+      <select id="appStoreVm" class="form-control">
+        <% vms.forEach((vm) => { %>
+          <option value="<%= vm.id %>" data-status="<%= vm.status %>" data-ssh-port="<%= vm.ssh_port %>" data-username="<%= vm.username %>"><%= vm.name %> · <%= vm.status %></option>
+        <% }); %>
+      </select>
+      <span class="muted">The VM must be running and reachable over SSH.</span>
+    </section>
+
+    <section class="app-store-grid" aria-label="Reviewed applications">
+      <% apps.forEach((app) => { %>
+        <article class="card app-store-card">
+          <div class="app-store-card-top">
+            <span class="app-store-icon"><i data-lucide="<%= app.icon %>"></i></span>
+            <span class="app-store-category"><%= app.category %></span>
+          </div>
+          <h2><%= app.name %></h2>
+          <p class="muted"><%= app.description %></p>
+          <p class="app-store-exposure"><i data-lucide="network"></i><%= app.exposure %></p>
+          <button type="button" class="btn btn-primary app-store-launch" data-app-id="<%= app.id %>" data-app-name="<%= app.name %>">Install <%= app.name %></button>
+        </article>
+      <% }); %>
+    </section>
+
+    <section class="card app-store-custom">
+      <div class="app-store-card-top">
+        <span class="app-store-icon"><i data-lucide="terminal"></i></span>
+        <span class="app-store-category">Advanced</span>
+      </div>
+      <h2>Custom install script</h2>
+      <p class="muted">Run a script you have reviewed on your VM as root. The script is sent over the VM's authenticated SSH connection, limited to <%= Math.floor(maxCustomScriptBytes / 1024) %> KB, and is not saved by the panel.</p>
+      <label for="customInstallScript">Shell script</label>
+      <textarea id="customInstallScript" rows="9" maxlength="<%= maxCustomScriptBytes %>" spellcheck="false" placeholder="#!/usr/bin/env bash&#10;set -euo pipefail&#10;# Commands run as root inside the selected VM."></textarea>
+      <div class="app-store-custom-footer">
+        <span id="customScriptSize" class="muted">0 / <%= Math.floor(maxCustomScriptBytes / 1024) %> KB</span>
+        <button type="button" id="runCustomInstall" class="btn btn-outline">Review and run script</button>
+      </div>
+    </section>
+  <% } %>
+  <div class="app-store-status" id="appStoreStatus" role="status" aria-live="polite" hidden></div>
+  <section class="card app-store-result" id="appStoreResult" hidden aria-live="polite"></section>
+</main>
+<%- include('../partials/music') %>
+<%- include('../partials/foot') %>
+<script src="/js/app-store.js" defer></script>

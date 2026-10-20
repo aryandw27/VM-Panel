@@ -36,7 +36,7 @@ const config = {
     secure: String(process.env.MAIL_SECURE || 'false') === 'true',
     user: process.env.MAIL_USER || '',
     pass: process.env.MAIL_PASS || '',
-    from: process.env.MAIL_FROM || 'vpanel <no-reply@vpanel.local>',
+    from: process.env.MAIL_FROM || 'SiliconHost VM Panel <no-reply@siliconhost.local>',
   },
   wallpaperApiKey: process.env.WALLPAPERS_API_KEY || '',
   turnstile: {

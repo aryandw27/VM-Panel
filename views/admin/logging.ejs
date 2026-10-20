@@ -1,0 +1,54 @@
+<%- include('../partials/head', { title: 'Discord Logging', styles: ['/css/admin-logging.css'] }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+<main class="main logging-page">
+  <header class="logging-heading">
+    <div>
+      <p class="logging-eyebrow">ADMINISTRATION / INTEGRATIONS</p>
+      <h1>Discord logging</h1>
+      <p class="muted">Route platform activity to the right Discord servers with templates you control.</p>
+    </div>
+    <button type="button" id="refreshDiscord" class="btn btn-outline"><i data-lucide="refresh-cw"></i> Refresh bot status</button>
+  </header>
+
+  <section class="logging-setup-note">
+    <i data-lucide="info"></i>
+    <div><strong>Connect a Discord bot first</strong><p>Create an application and bot in the Discord Developer Portal, enable the Guilds intent, then invite it to each server with View Channels, Send Messages, and Embed Links permissions. Paste the bot token below; it is encrypted at rest and never returned to the browser. <strong>Keep JWT_SECRET backed up:</strong> it is used to encrypt the token, so changing it makes the saved token unreadable.</p></div>
+  </section>
+
+  <form id="discordLoggingForm" autocomplete="off">
+    <section class="card logging-card">
+      <div class="logging-section-heading">
+        <div><h2>Bot connection</h2><p class="muted">The bot runs alongside the panel and reconnects automatically.</p></div>
+        <span id="discordBotStatus" class="logging-status"><%= logging.status %></span>
+      </div>
+      <div class="logging-form-grid">
+        <label class="logging-enable"><input type="checkbox" id="discordEnabled" <%= logging.enabled ? 'checked' : '' %>><span><strong>Enable Discord logging</strong><small>Start the bot gateway and deliver enabled routes.</small></span></label>
+        <div class="form-group"><label for="discordBotToken">Bot token</label><input id="discordBotToken" type="password" maxlength="300" autocomplete="new-password" placeholder="<%= logging.tokenConfigured ? 'Saved securely · leave blank to keep current token' : 'Paste the bot token' %>"><small class="muted">Never displayed again or returned by the settings API.</small></div>
+        <div class="form-group"><label for="discordLogoUrl">Embed logo URL (optional)</label><input id="discordLogoUrl" type="url" maxlength="2048" placeholder="https://example.com/logo.png" value="<%= logging.avatarUrl %>"><small class="muted">Must be an HTTPS image URL visible to Discord.</small></div>
+      </div>
+      <div id="discordFormStatus" class="logging-feedback" role="status" aria-live="polite"></div>
+      <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save bot settings and routes</button>
+    </section>
+
+    <section class="card logging-card">
+      <div class="logging-section-heading">
+        <div><h2>Event routes</h2><p class="muted">A route sends one event type to one channel. Add multiple routes to fan out an event to multiple servers.</p></div>
+        <button type="button" id="addLoggingRoute" class="btn btn-outline"><i data-lucide="plus"></i> Add route</button>
+      </div>
+      <p class="logging-placeholders">Available template placeholders: <code>{user}</code> <code>{ip}</code> <code>{server}</code> <code>{event}</code> <code>{time}</code> <code>{details}</code></p>
+      <div class="logging-routes-wrap">
+        <table class="table logging-routes">
+          <thead><tr><th>Event</th><th>Discord server</th><th>Channel</th><th>Message template</th><th>Color</th><th>On</th><th></th></tr></thead>
+          <tbody id="discordRoutes"></tbody>
+        </table>
+      </div>
+      <div id="discordGuildHint" class="muted logging-guild-hint"></div>
+    </section>
+  </form>
+</main>
+<script type="application/json" id="discordLoggingInitial"><%- JSON.stringify(logging).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/music') %>
+<%- include('../partials/foot') %>
+<script src="/js/admin-logging.js" defer></script>

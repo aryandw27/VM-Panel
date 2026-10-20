@@ -30,6 +30,7 @@ function createWebApp() {
   app.set('view engine', 'ejs');
   app.set('views', path.join(config.root, 'views'));
   app.use(express.urlencoded({ extended: true }));
+  app.use('/apps/api/install', express.json({ limit: '24kb' }));
   app.use(express.json({ limit: '50mb' }));
   app.use(cookieParser());
   const { i18nMiddleware } = require('./lib/i18n');
@@ -340,6 +341,8 @@ async function bootstrap() {
   await initDb();
   const pluginManager = require('./lib/pluginManager');
   await pluginManager.init();
+  const discordLogger = require('../bot/discordLogger');
+  discordLogger.start().catch((error) => logger.warn('[discord-logger] Startup failed: ' + error.message));
   const updateService = require('./services/updateService');
   updateService.initBackgroundChecker();
   await scheduleService.loadAll();
@@ -380,24 +383,15 @@ async function bootstrap() {
   attachVncProxy(webServer);
 
   
-  try {
-    if ((await authService.countAdmins()) === 0) {
-      const username = process.env.ADMIN_USERNAME || 'admin';
-      const email = process.env.ADMIN_EMAIL || 'admin@vpanel.local';
-      const password = process.env.ADMIN_PASSWORD || 'admin12345';
-      const user = await authService.createUser({ username, email, password, name: 'Administrator', role: 'admin', verified: true });
-      await collections.users.updateOne({ id: user.id }, { $set: { root_admin: 1 } });
-      logger.info(`[panel] auto-seeded initial admin: ${username} (${email})`);
-    }
-  } catch (e) {
-    logger.warn('[panel] auto-seed admin: ' + e.message);
+  if ((await authService.countAdmins()) === 0) {
+    logger.warn('[panel] no administrator account exists; run `npm run createuser` or use the guided installer before exposing the panel');
   }
 
   webServer.listen(config.panelPort, '0.0.0.0', () => {
-    logger.info(`[panel] vpanel web running on http://0.0.0.0:${config.panelPort}`);
+    logger.info(`[panel] SiliconHost VM Panel web running on http://0.0.0.0:${config.panelPort}`);
   });
   apiApp.listen(config.apiPort, '0.0.0.0', () => {
-    logger.info(`[panel] vpanel API running on http://0.0.0.0:${config.apiPort}/api`);
+    logger.info(`[panel] SiliconHost VM Panel API running on http://0.0.0.0:${config.apiPort}/api`);
   });
 
   

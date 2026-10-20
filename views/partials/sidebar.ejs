@@ -57,6 +57,7 @@ const iconRocket = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
     <a href="/admin/security" class="nav-link <%= act('admin-security', page) %>"><span class="v-icon"><%- iconShield %></span><span>Rate Limits &amp; IP Security</span></a>
     <a href="/admin/mongodb" class="nav-link <%= act('admin-mongodb', page) %>"><span class="v-icon"><%- iconMongo %></span><span>Databases (MongoDB)</span></a>
     <a href="/admin/plugins" class="nav-link <%= act('admin-plugins', page) %>"><span class="v-icon"><%- iconLayers %></span><span>Plugins &amp; Addons</span></a>
+    <a href="/admin/logging" class="nav-link <%= act('admin-logging', page) %>"><span class="v-icon"><%- iconActivity %></span><span>Discord Logging</span></a>
     <a href="/admin/audit" class="nav-link <%= act('admin-audit', page) %>"><span class="v-icon"><%- iconShield %></span><span>Audit &amp; Security</span></a>
 
     <% const hasUpdateAvailable = settings && settings['update.available'] === '1'; %>
@@ -77,6 +78,7 @@ const iconRocket = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
     
     <div class="nav-section-title">Navigation</div>
     <a href="/dashboard" class="nav-link <%= act('dashboard', page) %>"><span class="v-icon"><%- iconHome %></span><span>Dashboard</span></a>
+    <a href="/apps" class="nav-link <%= act('apps', page) %>"><span class="v-icon"><%- iconLayers %></span><span>App Store</span></a>
 
     <% if (hasVm) { %>
       <div class="nav-section-title">Server: <%= vm.name %></div>

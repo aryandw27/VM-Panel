@@ -86,7 +86,7 @@ class ApiManagerService {
     const payload = {
       event: 'test:ping',
       timestamp: new Date().toISOString(),
-      message: 'vPanel Pro Webhook Connectivity Verification',
+      message: 'SiliconHost VM Panel webhook connectivity verification',
     };
     const bodyStr = JSON.stringify(payload);
     const headers = { 'Content-Type': 'application/json' };

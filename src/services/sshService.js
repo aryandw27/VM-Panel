@@ -34,18 +34,50 @@ function connect(vm, { readyTimeout = 10000 } = {}) {
   });
 }
 
-function exec(conn, cmd, { timeout = 30000 } = {}) {
+function exec(conn, cmd, { timeout = 30000, maxOutputBytes = Infinity } = {}) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let streamRef = null;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      if (streamRef) streamRef.close();
+      reject(new Error(`SSH command timed out after ${timeout} ms`));
+    }, timeout);
     conn.exec(cmd, (err, stream) => {
-      if (err) return reject(err);
+      if (err) {
+        settled = true;
+        clearTimeout(timer);
+        return reject(err);
+      }
+      streamRef = stream;
+      if (settled) {
+        stream.close();
+        return;
+      }
       let out = '';
       let errOut = '';
-      stream.on('data', (d) => { out += d.toString(); });
-      stream.stderr.on('data', (d) => { errOut += d.toString(); });
+      let capturedBytes = 0;
+      const capture = (current, data) => {
+        const text = data.toString();
+        const remaining = Math.max(0, maxOutputBytes - capturedBytes);
+        capturedBytes += Buffer.byteLength(text);
+        return current + (remaining > 0 ? Buffer.from(text).subarray(0, remaining).toString() : '');
+      };
+      stream.on('data', (d) => { out = capture(out, d); });
+      stream.stderr.on('data', (d) => { errOut = capture(errOut, d); });
       stream.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         resolve({ code, stdout: out, stderr: errOut });
       });
-      stream.on('error', reject);
+      stream.on('error', (streamError) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(streamError);
+      });
     });
   });
 }

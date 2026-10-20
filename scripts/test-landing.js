@@ -48,8 +48,16 @@ test('background video stays subtle and layered behind content', () => {
 });
 
 test('footer links and structure intact', () => {
-  for (const s of ['Deploy Server', 'High-Compute VPS', 'Client Area / Login', 'Global Datacenters',
-    'Privacy Policy', 'Terms of Service', 'SILICONHOST', 'footer-cols', 'footer-legal-bar']) {
+  for (const s of ['Open SiliconHost VM Panel', 'VPS App Store', 'Client Area / Login',
+    'Privacy Policy', 'Terms of Service', 'footer-cols', 'footer-legal-bar']) {
     assert.ok(src.includes(s), `footer keeps: ${s}`);
   }
+});
+
+test('landing page presents the product accurately without fabricated hosting claims', () => {
+  for (const claim of ['10,000+ VPS instances', 'Global PoPs & Datacenters', '3.2 Tbps', '100% power and network SLA']) {
+    assert.ok(!src.includes(claim), `landing page omits unsupported claim: ${claim}`);
+  }
+  assert.match(src, /Your virtual machines,[\s\S]*?control plane/);
+  assert.match(src, /QEMU \/ KVM/);
 });

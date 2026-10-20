@@ -18,7 +18,14 @@ const { uploadAvatar } = require('../middleware/upload');
 const { getThemes } = require('../lib/builtInThemes');
 const { saveThemePreference } = require('../services/themePreferences');
 const { createIncidentService } = require('../services/incidentService');
+const appStoreService = require('../services/appStoreService');
 const incidentService = createIncidentService({ collections, ensureConnected: require('../lib/db').ensureConnected, vmService: require('../services/vmService') });
+const appInstallLimit = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  key: userKey,
+  message: 'Too many app installations. Wait a few minutes before trying again.',
+});
 const router = express.Router();
 
 router.use(requireAuth);
@@ -70,6 +77,65 @@ router.get('/dashboard', async (req, res, next) => {
     render(res, 'dashboard', { vms, subVms, running, recentActivity });
   } catch (err) {
     next(err);
+  }
+});
+
+router.get('/apps', async (req, res, next) => {
+  try {
+    const rows = await collections.vms.find({ owner_id: Number(req.user.id) }).sort({ name: 1 }).toArray();
+    render(res, 'apps', {
+      apps: appStoreService.catalog,
+      vms: rows.map(vmService.serializeVm),
+      maxCustomScriptBytes: appStoreService.MAX_CUSTOM_SCRIPT_BYTES,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/apps/api/install', appInstallLimit, express.json({ limit: '24kb' }), async (req, res) => {
+  const origin = req.get('origin');
+  if (origin) {
+    try {
+      if (new URL(origin).host !== req.get('host')) {
+        return res.status(403).json({ ok: false, error: 'Cross-origin app installations are not allowed.' });
+      }
+    } catch (_) {
+      return res.status(403).json({ ok: false, error: 'Invalid request origin.' });
+    }
+  } else if (req.get('sec-fetch-site') === 'cross-site') {
+    return res.status(403).json({ ok: false, error: 'Cross-origin app installations are not allowed.' });
+  }
+  try {
+    if (req.body?.confirmed !== true) {
+      return res.status(400).json({ ok: false, error: 'Confirm that you trust this installer before continuing.' });
+    }
+    const vmId = Number.parseInt(req.body.vmId, 10);
+    if (!Number.isSafeInteger(vmId) || vmId < 1) {
+      return res.status(400).json({ ok: false, error: 'Choose a valid VM.' });
+    }
+    const vm = await vmService.getVm(vmId);
+    if (!vm || Number(vm.owner_id) !== Number(req.user.id)) {
+      return res.status(404).json({ ok: false, error: 'VM not found or not owned by this account.' });
+    }
+    const result = await appStoreService.install({
+      vm,
+      user: req.user,
+      appId: req.body.appId,
+      customScript: req.body.customScript,
+    });
+    return res.json({ ok: true, result });
+  } catch (error) {
+    const status = error instanceof TypeError ? 400
+      : /not running|already forwarded|No free public port|Start the VM/i.test(error.message) ? 409
+        : 500;
+    if (status === 500) {
+      require('../lib/logger').error(`[app-store] Installation failed for user ${req.user.id}: ${error.message}`);
+    }
+    return res.status(status).json({
+      ok: false,
+      error: status === 500 ? 'The installer failed. Check the VM SSH connection and try again.' : error.message,
+    });
   }
 });
 

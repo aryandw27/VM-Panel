@@ -72,9 +72,25 @@ function getOsList() {
 function parseForwards(str) {
   const out = [];
   if (!str) return out;
+  if (Array.isArray(str)) {
+    return str
+      .map((forward) => ({ host: Number(forward.host), guest: Number(forward.guest) }))
+      .filter((forward) => Number.isInteger(forward.host) && forward.host > 0 && forward.host <= 65535
+        && Number.isInteger(forward.guest) && forward.guest > 0 && forward.guest <= 65535);
+  }
+  if (typeof str === 'string' && str.trim().startsWith('[')) {
+    try {
+      return parseForwards(JSON.parse(str));
+    } catch (_) {
+      return out;
+    }
+  }
   for (const part of String(str).split(',')) {
     const m = part.trim().match(/^(\d+):(\d+)$/);
-    if (m) out.push({ host: parseInt(m[1], 10), guest: parseInt(m[2], 10) });
+    if (m) {
+      const forward = { host: parseInt(m[1], 10), guest: parseInt(m[2], 10) };
+      if (forward.host > 0 && forward.host <= 65535 && forward.guest > 0 && forward.guest <= 65535) out.push(forward);
+    }
   }
   return out;
 }
@@ -165,6 +181,11 @@ function buildQemuArgs(vm) {
   const kvmAvailable = hasKvm();
   const accelMode = kvmAvailable ? 'kvm:tcg' : 'tcg';
   const cpuType = kvmAvailable ? 'host' : 'qemu64';
+  const hostForwards = [
+    `hostfwd=tcp::${vm.ssh_port}-:22`,
+    ...(vm.agent_port ? [`hostfwd=tcp::${vm.agent_port}-:9090`] : []),
+    ...fwds.map((forward) => `hostfwd=tcp::${forward.host}-:${forward.guest}`),
+  ];
 
   const args = [
     '-m', String(vm.memory),
@@ -175,19 +196,12 @@ function buildQemuArgs(vm) {
     '-drive', `file=${seed},format=raw,if=virtio`,
     '-boot', 'order=c',
     '-device', 'virtio-net-pci,netdev=n0',
-    '-netdev', `user,id=n0,hostfwd=tcp::${vm.ssh_port}-:22${vm.agent_port ? `,hostfwd=tcp::${vm.agent_port}-:9090` : ''}`,
+    '-netdev', `user,id=n0,${hostForwards.join(',')}`,
     '-object', 'rng-random,filename=/dev/urandom,id=rng0',
     '-device', 'virtio-rng-pci,rng=rng0',
     '-rtc', 'base=utc,clock=host',
     '-device', 'virtio-balloon-pci',
   ];
-
-  let ni = 1;
-  for (const f of fwds) {
-    args.push('-device', `virtio-net-pci,netdev=n${ni}`);
-    args.push('-netdev', `user,id=n${ni},hostfwd=tcp::${f.host}-:${f.guest}`);
-    ni++;
-  }
 
   if (vm.vnc_port) {
     args.push('-vnc', `127.0.0.1:${vm.vnc_port - 5900}`);
@@ -888,5 +902,5 @@ function liveStats(vm) {
 module.exports = {
   VM_DIR, vmDir, dbVms, getVm, create, start, stop, restart, remove, update,
   resizeDisk, isRunning, statusOf, serializeVm, canAccess, allocPort, allocVncPort, allocAgentPort,
-  parseForwards, usage, uptimeSeconds, memUsage, cpuUsage, diskActualUsage, liveStats, totalDiskUsage, startOnBootAll, getOsList, getBootLog, clearBootLog, hasKvm, transferOwner, withVmOperationLock, restoreDiskUnderVmLock, runBoundedProcess,
+  parseForwards, buildQemuArgs, usage, uptimeSeconds, memUsage, cpuUsage, diskActualUsage, liveStats, totalDiskUsage, startOnBootAll, getOsList, getBootLog, clearBootLog, hasKvm, transferOwner, withVmOperationLock, restoreDiskUnderVmLock, runBoundedProcess,
 };

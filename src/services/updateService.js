@@ -65,7 +65,7 @@ class UpdateService extends EventEmitter {
     }
 
     const currentVersion = this.getCurrentVersion();
-    const repo = settings.get('update.repo') || 'nobita329/vpanel-pro';
+    const repo = settings.get('update.repo') || 'aryandw27/VM-Panel';
     const channel = settings.get('update.channel') || 'stable';
     const ignoredVer = settings.get('update.ignored_version') || '';
 
@@ -73,7 +73,7 @@ class UpdateService extends EventEmitter {
       const apiUrl = `https://api.github.com/repos/${repo}/releases`;
       const res = await fetch(apiUrl, {
         headers: {
-          'User-Agent': 'vPanel-Pro-Updater/3.0.0',
+          'User-Agent': 'SiliconHost-VM-Panel-Updater/3.1.1',
           Accept: 'application/vnd.github.v3+json',
         },
         signal: AbortSignal.timeout(8000),
@@ -212,7 +212,7 @@ class UpdateService extends EventEmitter {
     };
 
     try {
-      log(`🚀 Initiating vPanel Pro system update: ${fromVersion} -> ${targetVersion}`);
+      log(`🚀 Initiating SiliconHost VM Panel update: ${fromVersion} -> ${targetVersion}`);
 
       
       emitStep(1, 'Checking Update & Environment...', 15);
@@ -289,7 +289,7 @@ class UpdateService extends EventEmitter {
 
       
       emitStep(7, 'Update Completed Successfully! 🎉', 100);
-      log(`🎉 vPanel Pro successfully updated to ${targetVersion}!`);
+      log(`🎉 SiliconHost VM Panel successfully updated to ${targetVersion}!`);
 
       
       const histId = await getNextId('update_history');

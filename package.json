@@ -1,7 +1,7 @@
 {
-  "name": "vpanel-pro",
+  "name": "siliconhost-vm-panel",
   "version": "3.1.1",
-  "description": "vPanel Pro v3 - Enterprise Virtualization Platform & Management Suite",
+  "description": "SiliconHost VM Panel - Virtual machine provisioning and management",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -26,6 +26,7 @@
     "test:rate-limit": "node --test scripts/test-rate-limit.js",
     "test:ai-ux": "node --test scripts/test-ai-ux.js",
     "test:landing": "node --test scripts/test-landing.js",
+    "test:app-integrations": "node --test scripts/test-app-integrations.js",
     "test:ai-file-tools": "node --test scripts/test-ai-file-tools.js",
     "test:ai-file-approvals": "node --test scripts/test-ai-file-approvals.js",
     "test:ai-usage": "node --test scripts/test-ai-usage.js",

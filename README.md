@@ -1,17 +1,16 @@
 <div align="center">
 
-# ⚡ vPanel Pro v3.1.1
-### Enterprise-Grade QEMU/KVM Virtualization Platform with Full Arix Theme v2.1.3 Integration
+# SiliconHost VM Panel
+### Virtual machine provisioning and management for your infrastructure
 
 [![Node.js](https://img.shields.io/badge/Node.js-v18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Express](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com)
 [![QEMU](https://img.shields.io/badge/QEMU-Virtualization-FF6600?style=for-the-badge&logo=qemu&logoColor=white)](https://www.qemu.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-[![Arix Theme](https://img.shields.io/badge/Arix_Theme-v2.1.3-4A35CF?style=for-the-badge)](https://github.com/nobita329/vpanel-pro)
-[![GitHub Release](https://img.shields.io/badge/Release-v3.1.1-6366F1?style=for-the-badge&logo=github)](https://github.com/nobita329/vpanel-pro/releases)
+[![GitHub Release](https://img.shields.io/badge/Release-v3.1.1-6366F1?style=for-the-badge&logo=github)](https://github.com/aryandw27/VM-Panel/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-*A complete, high-performance virtualization platform featuring strict 2-Panel Separation (👑 Admin Control Plane vs 👤 Tenant User Panel), native Arix Theme v2.1.3 design system, multi-session SSH console, real-time telemetry area charts, cluster nodes, and automated CI/CD releases.*
+*A self-hosted QEMU/KVM control panel for provisioning and operating virtual machines, with separate administrator and customer workspaces, SSH console access, telemetry, a VPS app store, and configurable Discord activity logging.*
 
 ---
 
@@ -27,6 +26,8 @@
 - **Admin Rate Limits & IP Security**: Configure per-IP request thresholds and temporary automatic blocks, review privacy-limited browser/OS request analytics, and manage manual IP blocks.
   - Automatic protection starts at 120 requests per IP per minute, followed by a 15-minute block; administrators can adjust these limits under **Admin → Rate Limits & IP Security**. Request summaries expire after 30 days.
 - **Unified Navigation**: Compact responsive sidebar, restrained active states, mobile drawer, and consistent topbar controls.
+- **VPS App Store**: Install reviewed WordPress and OpenClaw deployments on an owned VM, or run a confirmed custom shell script. WordPress installs save a QEMU host-port mapping that takes effect on the next VM restart; OpenClaw remains private and is accessed through SSH tunnelling.
+- **Discord Activity Logging**: Run a Discord bot with encrypted token storage, live guild/channel discovery, per-event destinations, editable message templates, embed colors, and test delivery.
 
 ### 🖥️ 2. Signature Arix Server Console Dashboard
 - **Top Header & Spec Summary**: Displays server name, OS distro, allocated vCPUs, RAM, and SSH port.
@@ -66,7 +67,7 @@
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        vPanel Pro Frontend                             │
+│                   SiliconHost VM Panel Frontend                       │
 │       Arix Theme v2.1.3 • EJS • Xterm.js • Socket.IO • Lucide Icons    │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ HTTP / WebSocket (Port 3001)
@@ -99,8 +100,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/nobita329/vpanel-pro.git
-cd vpanel-pro
+git clone https://github.com/aryandw27/VM-Panel.git
+cd VM-Panel
 
 # Guided install (installs dependencies, MongoDB, and vPanel)
 sudo bash install.sh
@@ -125,7 +126,7 @@ sudo bash install.sh
 # files are not deleted; unreachable non-local databases are never modified.
 
 # Or 1-line unattended install
-sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.local --admin-pass 'your_secure_password'
+sudo bash install.sh --install -y --admin-user admin --admin-email admin@siliconhost.local --admin-pass 'your_secure_password'
 ```
 
 #### Installer CLI Options:
@@ -138,7 +139,7 @@ sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.
 | `5`, `--uninstall` | Safe uninstaller wizard | - |
 | `--menu` | Open the maintenance menu | - |
 | `--admin-user <user>` | Administrator username | `admin` |
-| `--admin-email <email>`| Administrator email address | `admin@vpanel.local` |
+| `--admin-email <email>`| Administrator email address | `admin@siliconhost.local` |
 | `--admin-pass <pass>` | Administrator password | Prompted securely |
 | `--panel-port <port>` | Web panel port | `3001` |
 | `--no-pm2` | Skip PM2 daemon setup | `0` |
@@ -150,8 +151,8 @@ sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.
 
 ```bash
 # 1. Clone repository & install dependencies
-git clone https://github.com/nobita329/vpanel-pro.git
-cd vpanel-pro
+git clone https://github.com/aryandw27/VM-Panel.git
+cd VM-Panel
 npm install
 
 # 2. Build assets
@@ -160,7 +161,7 @@ npm run build
 # 3. Create administrator account
 npm run createuser
 
-# 4. Start vPanel Pro
+# 4. Start SiliconHost VM Panel
 npm start
 ```
 
@@ -181,25 +182,10 @@ pm2 startup
 
 ### Option 4: Docker & No-KVM Mode
 
-For environments without `/dev/kvm` hardware acceleration (cloud VPS, GitHub Codespaces, standard Docker):
+For environments without `/dev/kvm` hardware acceleration, follow the required secret setup and Compose steps in [README-DOCKER.md](README-DOCKER.md):
 
 ```bash
-# Start container using Docker Compose
 docker compose up -d --build
-```
-
-Or run standalone:
-```bash
-docker run -d \
-  --name vpanel-pro \
-  --restart unless-stopped \
-  -e NO_KVM=1 \
-  -p 3001:3001 \
-  -p 3002:3002 \
-  -p 25501-25600:25501-25600 \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/vms:/app/vms \
-  nobita329/vpanel-pro
 ```
 
 ---
@@ -208,13 +194,25 @@ docker run -d \
 
 | Service | Default URL / Port | Description |
 | :--- | :--- | :--- |
-| **Web Panel** | `http://<host_ip>:3001` | Arix-themed management interface & client dashboard |
+| **Web Panel** | `http://<host_ip>:3001` | SiliconHost VM Panel administrator and customer workspaces |
 | **REST API** | `http://<host_ip>:3002/api` | RESTful API & Socket.IO telemetry engine |
 | **VM Port Range** | `25501 - 25600` | Dynamic host-forwarded guest SSH ports |
 | **noVNC Console Range** | `25901 - 26000` | Dynamic host-forwarded guest VNC ports |
 | **Agent Port Range** | `26101 - 26200` | Guest daemon communication |
 
 ---
+
+## VPS App Store
+
+The authenticated **App Store** installs reviewed WordPress and OpenClaw setups on VMs owned by the signed-in user. It also provides an advanced custom-script option, limited to 16 KB and requiring explicit confirmation; custom scripts run as root inside the selected guest. Installs require a running VM with working SSH access.
+
+- **WordPress** installs a persistent Docker Compose stack. SiliconHost selects an available host port and saves a QEMU forward to guest port `8080`. Restart the VM to activate the mapping, allow the selected port through the host firewall, then finish setup in WordPress.
+- **OpenClaw** is installed from its official source and started with token authentication. It is not publicly forwarded by default. Use the private SSH tunnel and one-time gateway token shown after installation, then configure a model provider in OpenClaw.
+- Docker-based catalog apps currently support Debian and Ubuntu guests. The app store does not silently execute third-party catalog scripts; custom scripts are supplied by the VM owner.
+
+## Discord Activity Logging
+
+Administrators can configure a Discord bot under **Admin → Discord Logging**. The bot requires the Guilds intent and View Channels, Send Messages, and Embed Links permissions in each server. It discovers servers and text channels through the Discord Gateway, supports event/channel routes, templates (`{user}`, `{ip}`, `{server}`, `{event}`, `{time}`, `{details}`), embed colors, and test delivery. Bot tokens are encrypted at rest using `JWT_SECRET` and are never returned by the settings API. Keep the secret persistent and backed up; changing or losing it requires entering the bot token again.
 
 ## ⚙️ Configuration (`.env`)
 

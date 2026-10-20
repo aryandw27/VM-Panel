@@ -43,7 +43,7 @@ async function getNextId(name) {
 }
 
 const defaultSettings = {
-  'panel.name': 'SiliconHost',
+  'panel.name': 'SiliconHost VM Panel',
   'panel.logo_mode': 'url',
   'panel.logo_url': '',
   'panel.logo_file': '',
@@ -82,7 +82,7 @@ const defaultSettings = {
   'update.auto_check': '1',
   'update.backup_before': '1',
   'update.auto_pm2_restart': '1',
-  'update.repo': 'nobita329/vpanel-pro',
+  'update.repo': 'aryandw27/VM-Panel',
   'update.last_checked': '',
   'update.latest_version': '',
   'update.available': '0',
@@ -174,6 +174,7 @@ const S = {
     }
     
     delete out['ai.api_key'];
+    delete out['logging.discord_token'];
     return out;
   },
   async reload() {
@@ -186,7 +187,7 @@ const S = {
       settingsCache[doc.key] = doc.value;
     }
     if (!settingsCache['panel.name'] || settingsCache['panel.name'] === 'vpanel' || settingsCache['panel.name'] === 'vPanel Pro') {
-      settingsCache['panel.name'] = 'SiliconHost';
+      settingsCache['panel.name'] = 'SiliconHost VM Panel';
     }
     return Object.keys(settingsCache).length;
   },
@@ -207,6 +208,7 @@ async function initDb() {
     'billing_plans', 'billing_invoices', 'billing_coupons',
     'update_history', 'quotas', 'templates', 'user_sessions',
     'nodes', 'node_allocations', 'locations',
+    'discord_bot_guilds', 'discord_bot_channels',
     'ai_credentials', 'ai_conversations', 'ai_messages', 'ai_events', 'ai_preferences',
     'ai_approvals', 'vm_operations', 'vm_operation_locks', 'incidents',
     'security_request_analytics', 'security_ip_blocks'
@@ -225,6 +227,9 @@ async function initDb() {
       collections.users.createIndex({ id: 1 }, { unique: true }),
       collections.users.createIndex({ username: 1 }, { unique: true }),
       collections.users.createIndex({ email: 1 }, { unique: true }),
+      collections.discord_bot_guilds.createIndex({ id: 1 }, { unique: true }),
+      collections.discord_bot_channels.createIndex({ id: 1 }, { unique: true }),
+      collections.discord_bot_channels.createIndex({ guildId: 1, name: 1 }),
       collections.vms.createIndex({ id: 1 }, { unique: true }),
       collections.vms.createIndex({ uuid: 1 }, { unique: true }),
       collections.vms.createIndex({ owner_id: 1 }),

@@ -38,7 +38,7 @@ async function runAutoFullTest() {
   if (!adminUser) {
     adminUser = await authService.createUser({
       username: 'admin',
-      email: 'admin@vpanel.local',
+      email: 'admin@siliconhost.local',
       password: 'adminPassword123!',
       name: 'Administrator',
       role: 'admin',
@@ -237,4 +237,3 @@ runAutoFullTest().catch(async (err) => {
   try { await closeDb(); } catch (_) {}
   process.exit(1);
 });
-

@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SiliconHost — Enterprise Cloud & Next-Gen VPS Infrastructure</title>
+  <title>SiliconHost VM Panel — Virtual Machine Management</title>
   <meta name="description"
-    content="SiliconHost is an independent cloud compute platform delivering high-performance KVM VPS, pure NVMe Gen4 storage, and Anycast DDoS protection with quiet precision." />
+    content="SiliconHost VM Panel is a self-hosted control panel for provisioning, operating, and monitoring QEMU/KVM virtual machines." />
   <script>
     if (window.location.pathname === '/landing' || window.location.hash) {
       try { history.replaceState(null, '', '/'); } catch (_) { }
@@ -85,7 +85,7 @@
     }
 
     :focus-visible {
-      outline: 2px solid #b15f2c;
+      outline: 2px solid #3b82f6;
       outline-offset: 2px;
     }
 
@@ -134,9 +134,9 @@
       --line: #e6e5e2;
       --surface: #f1f0ee;
       --surface-2: #e3e2df;
-      --accent: #b15f2c;
-      --accent-from: #cf8047;
-      --accent-to: #97501f;
+      --accent: #3b82f6;
+      --accent-from: #60a5fa;
+      --accent-to: #1d4ed8;
       --hero-from: #ecebe9;
       --hero-to: #c9c9c9;
       --radius-pill: 9999px;
@@ -224,7 +224,7 @@
     .loader-brand svg {
       width: 1.875rem;
       height: 1.875rem;
-      color: #cf8047;
+      color: #60a5fa;
     }
 
     .loader-tagline {
@@ -250,7 +250,7 @@
 
     .loader-fill {
       height: 100%;
-      background: #cf8047;
+      background: #60a5fa;
       width: 0%;
       transition: width 0.08s linear;
     }
@@ -318,7 +318,7 @@
     .brand-btn svg {
       width: 1.25rem;
       height: 1.25rem;
-      color: #cf8047;
+      color: #60a5fa;
     }
 
     .nav-list {
@@ -577,7 +577,7 @@
     .eyebrow-dot {
       width: 0.375rem;
       height: 0.375rem;
-      background: #cf8047;
+      background: #60a5fa;
       border-radius: 9999px;
     }
 
@@ -586,7 +586,7 @@
     }
 
     .eyebrow.light .eyebrow-dot {
-      background: #cf8047;
+      background: #60a5fa;
     }
 
     
@@ -647,7 +647,7 @@
       display: flex;
       align-items: center;
       gap: 0.15rem;
-      color: #cf8047;
+      color: #60a5fa;
     }
 
     .stars svg {
@@ -805,7 +805,7 @@
       place-items: center;
       border-radius: 0.875rem;
       background: #0a0a0a;
-      color: #cf8047;
+      color: #60a5fa;
       flex-shrink: 0;
     }
 
@@ -861,7 +861,7 @@
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #cf8047;
+      color: #60a5fa;
       margin-bottom: 0.15rem;
     }
 
@@ -896,7 +896,7 @@
 
     .card-dash.active {
       width: 1rem;
-      background: #cf8047;
+      background: #60a5fa;
     }
 
     .card-controls {
@@ -917,7 +917,7 @@
     }
 
     .card-btn:hover {
-      color: #cf8047;
+      color: #60a5fa;
       background: #283144;
     }
 
@@ -990,7 +990,7 @@
     .partner-item svg {
       width: 0.875rem;
       height: 0.875rem;
-      color: #cf8047;
+      color: #60a5fa;
       flex-shrink: 0;
     }
 
@@ -1201,7 +1201,7 @@
     }
 
     .social-chip.accent {
-      background: #b15f2c;
+      background: #3b82f6;
       color: #fff;
     }
 
@@ -1274,7 +1274,7 @@
     }
 
     .band-tile.accent {
-      background: linear-gradient(to bottom right, #cf8047, #97501f);
+      background: linear-gradient(to bottom right, #60a5fa, #1d4ed8);
       color: #fff;
     }
 
@@ -1859,7 +1859,7 @@
     .footer-brand-title svg {
       width: 1.25rem;
       height: 1.25rem;
-      color: #cf8047;
+      color: #60a5fa;
     }
 
     .footer-tagline {
@@ -1966,7 +1966,7 @@
     .navmenu-brand svg {
       width: 1.25rem;
       height: 1.25rem;
-      color: #cf8047;
+      color: #60a5fa;
     }
 
     .navmenu-close {
@@ -2052,7 +2052,7 @@
     }
 
     .navmenu-item-btn:hover .navmenu-idx {
-      color: #cf8047;
+      color: #60a5fa;
     }
 
     .navmenu-bottom {
@@ -2180,7 +2180,7 @@
       width: 0.375rem;
       height: 0.375rem;
       border-radius: 9999px;
-      background: #b15f2c;
+      background: #3b82f6;
     }
 
     .modal-h2 {
@@ -2271,7 +2271,7 @@
       place-items: center;
       border-radius: 9999px;
       background: #0a0a0a;
-      color: #cf8047;
+      color: #60a5fa;
     }
 
     .success-icon-badge svg {
@@ -2335,11 +2335,11 @@
       
       <nav class="nav-list" aria-label="Main Navigation">
         <button class="nav-btn active" data-target="home" aria-current="page">Home</button>
-        <button class="nav-btn" data-target="works">Compute</button>
-        <button class="nav-btn" data-target="services">Services <span
+        <button class="nav-btn" data-target="works">Platform</button>
+        <button class="nav-btn" data-target="services">Features <span
             style="font-size:0.75rem;opacity:0.6">▾</span></button>
         <button class="nav-btn" data-target="about">Architecture</button>
-        <button class="nav-btn" data-target="stats">Network</button>
+        <button class="nav-btn" data-target="stats">Overview</button>
         <a href="<%= (typeof user !== 'undefined' && user) ? '/dashboard' : '/register' %>" class="nav-btn"
           style="text-decoration:none">Deploy</a>
       </nav>
@@ -2409,41 +2409,19 @@
           
           <div class="eyebrow" id="heroEyebrow">
             <span class="eyebrow-dot"></span>
-            <span>Enterprise Cloud Infrastructure</span>
+            <span>Virtual infrastructure management</span>
           </div>
 
           
           <h1 class="hero-heading" id="heroHeading">
-            <span class="line-clip"><span class="line-inner">Enterprise compute,</span></span>
-            <span class="line-clip"><span class="line-inner">deployed with</span></span>
-            <span class="line-clip"><span class="line-inner">quiet precision.</span></span>
+            <span class="line-clip"><span class="line-inner">Your virtual machines,</span></span>
+            <span class="line-clip"><span class="line-inner">under one clear</span></span>
+            <span class="line-clip"><span class="line-inner">control plane.</span></span>
           </h1>
 
           
           <div class="rating-row" id="heroRating">
-            <div class="stars">
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z" />
-              </svg>
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z" />
-              </svg>
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z" />
-              </svg>
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z" />
-              </svg>
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z" />
-              </svg>
-            </div>
-            <span class="rating-text">10,000+ VPS instances deployed worldwide</span>
+            <span class="rating-text">Provision · Operate · Observe</span>
           </div>
 
           
@@ -2451,7 +2429,7 @@
             <a href="<%= (typeof user !== 'undefined' && user) ? '/dashboard' : '/register' %>"
               class="pill-btn dark with-arrow" style="text-decoration:none">
               <span class="pill-inner">
-                <span>Deploy Server</span>
+                <span>Create your workspace</span>
                 <span class="pill-badge">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M7 17 17 7M8 7h9v9" />
@@ -2461,7 +2439,7 @@
             </a>
             <button class="pill-btn outline no-arrow" data-target="works">
               <span class="pill-inner">
-                <span>View Plans</span>
+                <span>Explore the platform</span>
               </span>
             </button>
           </div>
@@ -2479,16 +2457,16 @@
               <div class="hero-card-panel">
                 <div class="card-slot">
                   <div class="card-item active" data-index="0">
-                    <div class="card-caption">NVMe Gen4 Fabrics</div>
-                    <div class="card-title">Up to 7,000 MB/s pure I/O throughput.</div>
+                    <div class="card-caption">One control plane</div>
+                    <div class="card-title">Provision and manage VMs in a single workspace.</div>
                   </div>
                   <div class="card-item" data-index="1">
-                    <div class="card-caption">Dedicated AMD EPYC</div>
-                    <div class="card-title">High-frequency cores for zero throttling.</div>
+                    <div class="card-caption">Console access</div>
+                    <div class="card-title">Connect through SSH, browser console, and guest tools.</div>
                   </div>
                   <div class="card-item" data-index="2">
-                    <div class="card-caption">Anycast DDoS Shield</div>
-                    <div class="card-title">3.2 Tbps multi-tier automated scrubbing.</div>
+                    <div class="card-caption">Built for operators</div>
+                    <div class="card-title">Review VM activity, backups, and resource signals.</div>
                   </div>
                 </div>
 
@@ -2517,56 +2495,56 @@
 
           
           <div class="partners-wrap" id="heroPartners">
-            <div class="partners-label">Global PoPs & Datacenters</div>
+            <div class="partners-label">Platform capabilities</div>
             <div class="partners-grid">
               <div class="partner-item">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <circle cx="12" cy="12" r="9" />
                   <circle cx="12" cy="12" r="3.2" fill="currentColor" />
                 </svg>
-                <span>Frankfurt</span>
+                <span>VM lifecycle</span>
               </div>
               <div class="partner-item">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <circle cx="12" cy="12" r="9" />
                   <circle cx="12" cy="12" r="3.2" fill="currentColor" />
                 </svg>
-                <span>London</span>
+                <span>SSH console</span>
               </div>
               <div class="partner-item">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <circle cx="12" cy="12" r="9" />
                   <circle cx="12" cy="12" r="3.2" fill="currentColor" />
                 </svg>
-                <span>New York</span>
+                <span>OS images</span>
               </div>
               <div class="partner-item">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <circle cx="12" cy="12" r="9" />
                   <circle cx="12" cy="12" r="3.2" fill="currentColor" />
                 </svg>
-                <span>Tokyo</span>
+                <span>Backups</span>
               </div>
               <div class="partner-item">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <circle cx="12" cy="12" r="9" />
                   <circle cx="12" cy="12" r="3.2" fill="currentColor" />
                 </svg>
-                <span>Singapore</span>
+                <span>App store</span>
               </div>
               <div class="partner-item">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <circle cx="12" cy="12" r="9" />
                   <circle cx="12" cy="12" r="3.2" fill="currentColor" />
                 </svg>
-                <span>Amsterdam</span>
+                <span>Rate limits</span>
               </div>
               <div class="partner-item">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                   <circle cx="12" cy="12" r="9" />
                   <circle cx="12" cy="12" r="3.2" fill="currentColor" />
                 </svg>
-                <span>Silicon Valley</span>
+                <span>Discord logs</span>
               </div>
             </div>
           </div>
@@ -2575,8 +2553,8 @@
 
       
       <div class="shell hero-status-bar" id="heroStatusBar">
-        <span>Operating since 2018</span>
-        <span class="status-center">Enterprise KVM Cloud, Worldwide</span>
+        <span>Self-hosted by design</span>
+        <span class="status-center">QEMU / KVM · Admin and customer workspaces</span>
         <span style="display:inline-flex;gap:0.5rem">Scroll to explore &darr;</span>
       </div>
     </section>
@@ -2596,7 +2574,7 @@
 
           <div class="eyebrow" style="position:relative">
             <span class="eyebrow-dot"></span>
-            <span>The Infrastructure</span>
+            <span>One operational workspace</span>
           </div>
 
           <div class="about-lead-note reveal-on-scroll">
@@ -2605,8 +2583,7 @@
               <path
                 d="M12 2.75c2.6 2.3 4 5.8 4 9.25s-1.4 6.95-4 9.25c-2.6-2.3-4-5.8-4-9.25s1.4-6.95 4-9.25zM2.75 12h18.5" />
             </svg>
-            <span>A globally distributed cloud network powering mission-critical workloads across every
-              continent.</span>
+            <span>Run SiliconHost VM Panel on infrastructure you control, with your own virtualization host and data.</span>
           </div>
         </div>
 
@@ -2614,26 +2591,20 @@
         <div class="about-statement">
           <h2 class="about-h2" id="aboutWordH2">
             
-            We partner with ambitious engineering teams to ship digital infrastructure, high-throughput cloud compute,
-            and the resilient virtualization platforms that power them.
+            Provision, monitor, and operate QEMU/KVM virtual machines from a focused control panel designed for
+            administrators and their customers.
           </h2>
 
           <div class="about-foot-row reveal-on-scroll">
             <div>
-              <div class="social-label">SiliconHost Network</div>
+              <div class="social-label">Open source project</div>
               <div class="social-row">
                 <a href="#about" class="social-chip accent" aria-label="X / Twitter">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 4l16 16M20 4 4 20" />
                   </svg>
                 </a>
-                <a href="#about" class="social-chip ghost" aria-label="GitHub">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                    <circle cx="12" cy="12" r="9" />
-                    <circle cx="12" cy="12" r="3.2" fill="currentColor" />
-                  </svg>
-                </a>
-                <a href="#about" class="social-chip ghost" aria-label="Looking Glass">
+                <a href="https://github.com/aryandw27/VM-Panel" class="social-chip ghost" aria-label="SiliconHost VM Panel on GitHub" target="_blank" rel="noopener noreferrer">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                     <circle cx="12" cy="12" r="9" />
                     <circle cx="12" cy="12" r="3.2" fill="currentColor" />
@@ -2642,16 +2613,16 @@
               </div>
             </div>
 
-            <button class="pill-btn outline with-arrow modal-trigger">
+            <a href="/apps" class="pill-btn outline with-arrow" style="text-decoration:none">
               <span class="pill-inner">
-                <span>Custom Specs</span>
+                <span>Explore the app store</span>
                 <span class="pill-badge">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M5 12h14M13 6l6 6-6 6" />
                   </svg>
                 </span>
               </span>
-            </button>
+            </a>
           </div>
         </div>
       </div>
@@ -2683,9 +2654,9 @@
     <section id="works">
       <div class="shell works-shell">
         <div class="works-header">
-          <div class="works-eyebrow">Cloud Solutions</div>
+          <div class="works-eyebrow">SiliconHost VM Panel</div>
           <h2 class="works-h2">
-            <span class="line-clip"><span class="line-inner">Selected Compute Plans</span></span>
+            <span class="line-clip"><span class="line-inner">One control plane for daily VM operations.</span></span>
           </h2>
         </div>
 
@@ -2694,7 +2665,7 @@
           <li class="work-item">
             <article class="work-card modal-trigger">
               <div class="work-meta-row">
-                <span>KVM VPS — Gen4 NVMe</span>
+                <span>Virtual machines</span>
                 <div class="work-badge">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M7 17 17 7M8 7h9v9" />
@@ -2708,13 +2679,12 @@
                 </svg>
               </div>
               <div class="work-bottom-block">
-                <h3 class="work-title">High-Compute KVM VPS</h3>
-                <p class="work-desc">Dedicated vCPUs powered by AMD EPYC 9654 with pure Gen4 RAID-10 enterprise NVMe
-                  storage for fast database queries and compilation.</p>
+                <h3 class="work-title">QEMU / KVM lifecycle</h3>
+                <p class="work-desc">Create and manage virtual machines, configure compute and storage, and control their power state.</p>
                 <div class="work-tags">
-                  <span class="tag-chip">AMD EPYC</span>
-                  <span class="tag-chip">NVMe Gen4</span>
-                  <span class="tag-chip">10Gbps Port</span>
+                  <span class="tag-chip">Provision</span>
+                  <span class="tag-chip">Power control</span>
+                  <span class="tag-chip">Cloud images</span>
                 </div>
               </div>
             </article>
@@ -2724,7 +2694,7 @@
           <li class="work-item">
             <article class="work-card modal-trigger">
               <div class="work-meta-row">
-                <span>Game & Voice — Anti-DDoS</span>
+                <span>Customer operations</span>
                 <div class="work-badge">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M7 17 17 7M8 7h9v9" />
@@ -2738,13 +2708,12 @@
                 </svg>
               </div>
               <div class="work-bottom-block">
-                <h3 class="work-title">Ultra-Low Jitter Nodes</h3>
-                <p class="work-desc">Specially tuned Linux kernels with real-time hardware mitigations, guaranteeing
-                  sub-millisecond edge response for game engines and VoIP.</p>
+                <h3 class="work-title">Console and guest access</h3>
+                <p class="work-desc">Give customers a focused workspace for SSH, browser console access, guest files, backups, and activity.</p>
                 <div class="work-tags">
-                  <span class="tag-chip">3.2 Tbps Shield</span>
-                  <span class="tag-chip">1ms Latency</span>
-                  <span class="tag-chip">Turbo 4.8GHz</span>
+                  <span class="tag-chip">SSH</span>
+                  <span class="tag-chip">noVNC</span>
+                  <span class="tag-chip">Backups</span>
                 </div>
               </div>
             </article>
@@ -2754,7 +2723,7 @@
           <li class="work-item">
             <article class="work-card modal-trigger">
               <div class="work-meta-row">
-                <span>Storage Fabrics — S3 & Block</span>
+                <span>VPS App Store</span>
                 <div class="work-badge">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M7 17 17 7M8 7h9v9" />
@@ -2768,13 +2737,12 @@
                 </svg>
               </div>
               <div class="work-bottom-block">
-                <h3 class="work-title">Resilient Block Storage</h3>
-                <p class="work-desc">Triple-replicated Ceph NVMe block storage with zero-downtime volume resizing, live
-                  snapshotting, and zero egress fees across data regions.</p>
+                <h3 class="work-title">Install useful software</h3>
+                <p class="work-desc">Deploy reviewed WordPress and private-by-default OpenClaw setups, or run a custom script you trust.</p>
                 <div class="work-tags">
-                  <span class="tag-chip">Ceph Cluster</span>
-                  <span class="tag-chip">Snapshots</span>
-                  <span class="tag-chip">Zero Egress</span>
+                  <span class="tag-chip">WordPress</span>
+                  <span class="tag-chip">OpenClaw</span>
+                  <span class="tag-chip">Custom scripts</span>
                 </div>
               </div>
             </article>
@@ -2784,7 +2752,7 @@
           <li class="work-item">
             <article class="work-card modal-trigger">
               <div class="work-meta-row">
-                <span>Bare Metal — Dedicated</span>
+                <span>Administration</span>
                 <div class="work-badge">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M7 17 17 7M8 7h9v9" />
@@ -2798,13 +2766,12 @@
                 </svg>
               </div>
               <div class="work-bottom-block">
-                <h3 class="work-title">Dedicated Edge Servers</h3>
-                <p class="work-desc">Unshared physical bare metal hardware with dedicated IPMI, custom ISO mounts,
-                  multi-homed BGP transit, and 100% power and network SLA.</p>
+                <h3 class="work-title">Security and integrations</h3>
+                <p class="work-desc">Review request activity, configure rate limits and IP blocks, and route selected platform events to Discord.</p>
                 <div class="work-tags">
-                  <span class="tag-chip">Bare Metal</span>
-                  <span class="tag-chip">IPMI / KVM</span>
-                  <span class="tag-chip">100% SLA</span>
+                  <span class="tag-chip">Rate limits</span>
+                  <span class="tag-chip">IP controls</span>
+                  <span class="tag-chip">Discord logging</span>
                 </div>
               </div>
             </article>
@@ -2818,20 +2785,19 @@
       <div class="shell services-shell">
         <div class="eyebrow">
           <span class="eyebrow-dot"></span>
-          <span>Core Capabilities</span>
+          <span>Platform capabilities</span>
         </div>
 
         <h2 class="services-h2">
-          <span class="line-clip"><span class="line-inner">What we engineer best</span></span>
+          <span class="line-clip"><span class="line-inner">Everything you need to operate VMs.</span></span>
         </h2>
 
         <ul class="services-list">
           <li class="service-item">
             <div class="service-row modal-trigger">
               <span class="service-idx">01</span>
-              <h3 class="service-title">Cloud Compute & KVM Virtualization</h3>
-              <p class="service-desc">Instant KVM VPS provisioning, real-time live resource scaling, and automated
-                backups in our web control panel.</p>
+              <h3 class="service-title">Provisioning and lifecycle</h3>
+              <p class="service-desc">Provision QEMU/KVM guests from supported cloud images and manage their power, resources, and configuration.</p>
               <div class="service-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M7 17 17 7M8 7h9v9" />
@@ -2843,9 +2809,8 @@
           <li class="service-item">
             <div class="service-row modal-trigger">
               <span class="service-idx">02</span>
-              <h3 class="service-title">Global Anycast DDoS Mitigation</h3>
-              <p class="service-desc">Edge scrubbing network scrubbing layer-3/4/7 attacks up to 3.2 Tbps before
-                malicious traffic reaches your origin servers.</p>
+              <h3 class="service-title">Operational visibility</h3>
+              <p class="service-desc">Review VM activity, guest boot output, resource signals, and backups from the customer and admin panels.</p>
               <div class="service-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M7 17 17 7M8 7h9v9" />
@@ -2857,9 +2822,8 @@
           <li class="service-item">
             <div class="service-row modal-trigger">
               <span class="service-idx">03</span>
-              <h3 class="service-title">Enterprise NVMe RAID Fabrics</h3>
-              <p class="service-desc">Ultra-low latency solid-state disks engineered for high-transaction databases,
-                real-time queues, and microservices.</p>
+              <h3 class="service-title">Security controls</h3>
+              <p class="service-desc">Set request-rate policies, inspect recent client analytics, and manage automatic or manual IP blocks.</p>
               <div class="service-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M7 17 17 7M8 7h9v9" />
@@ -2871,9 +2835,8 @@
           <li class="service-item">
             <div class="service-row modal-trigger">
               <span class="service-idx">04</span>
-              <h3 class="service-title">Custom BGP Routing & BYOIP</h3>
-              <p class="service-desc">Bring your own IP subnets (BYOIP) and establish redundant low-latency BGP sessions
-                with major Tier-1 global transit providers.</p>
+              <h3 class="service-title">Integrations and app installs</h3>
+              <p class="service-desc">Route configurable activity events to Discord and install common guest software from a reviewed catalog.</p>
               <div class="service-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M7 17 17 7M8 7h9v9" />
@@ -2891,36 +2854,36 @@
         <div class="stats-panel" id="statsPanel">
           <div class="eyebrow light">
             <span class="eyebrow-dot"></span>
-            <span>By the numbers</span>
+            <span>At a glance</span>
           </div>
 
           <h2 class="stats-h2">
-            <span class="line-clip"><span class="line-inner">Proof in the performance, not the words.</span></span>
+            <span class="line-clip"><span class="line-inner">A focused toolkit for your infrastructure.</span></span>
           </h2>
 
           <ul class="stats-grid">
             
-            <li class="stat-item" data-target="150" data-suffix="+">
+            <li class="stat-item" data-target="15" data-suffix="+">
               <div class="stat-num-row"><span class="num-val">0</span>+</div>
-              <div class="stat-label">Global PoPs & Transit Nodes</div>
+              <div class="stat-label">Cloud-init images in the default catalog</div>
             </li>
 
             
-            <li class="stat-item" data-target="99" data-suffix="%">
-              <div class="stat-num-row"><span class="num-val">0</span>%</div>
-              <div class="stat-label">Uptime SLA guaranteed</div>
+            <li class="stat-item" data-target="2" data-suffix="">
+              <div class="stat-num-row"><span class="num-val">0</span></div>
+              <div class="stat-label">Reviewed one-click app installers</div>
             </li>
 
             
-            <li class="stat-item" data-target="12" data-suffix="ms">
-              <div class="stat-num-row"><span class="num-val">0</span>ms</div>
-              <div class="stat-label">Average global latency</div>
+            <li class="stat-item" data-target="2" data-suffix="">
+              <div class="stat-num-row"><span class="num-val">0</span></div>
+              <div class="stat-label">Separate admin and customer workspaces</div>
             </li>
 
             
-            <li class="stat-item" data-target="40" data-suffix="+">
-              <div class="stat-num-row"><span class="num-val">0</span>+</div>
-              <div class="stat-label">Tbps backbone capacity</div>
+            <li class="stat-item" data-target="1" data-suffix="">
+              <div class="stat-num-row"><span class="num-val">0</span></div>
+              <div class="stat-label">Self-hosted control plane</div>
             </li>
           </ul>
         </div>
@@ -2935,13 +2898,13 @@
       
       <div class="footer-cta-row">
         <h2 class="footer-cta-h2">
-          <span class="line-clip"><span class="line-inner">Have an infrastructure project?</span></span>
-          <span class="line-clip"><span class="line-inner">Let's get to work.</span></span>
+          <span class="line-clip"><span class="line-inner">Ready to manage your</span></span>
+          <span class="line-clip"><span class="line-inner">virtual infrastructure?</span></span>
         </h2>
         <a href="<%= (typeof user !== 'undefined' && user) ? '/dashboard' : '/register' %>"
           class="pill-btn light with-arrow" style="text-decoration:none">
           <span class="pill-inner">
-            <span>Deploy Server</span>
+            <span>Open SiliconHost VM Panel</span>
             <span class="pill-badge">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M7 17 17 7M8 7h9v9" />
@@ -2960,18 +2923,17 @@
               style="width:28px;height:28px;border-radius:7px;object-fit:cover" />
             <span>SiliconHost</span>
           </div>
-          <p class="footer-tagline">Next-generation cloud compute, NVMe storage, and global edge network designed for
-            performance-first developers.</p>
+          <p class="footer-tagline">A self-hosted QEMU/KVM control panel for provisioning, operating, and monitoring virtual machines.</p>
         </div>
 
         
         <div>
-          <div class="footer-col-title">Compute</div>
+          <div class="footer-col-title">Virtual machines</div>
           <ul class="footer-links">
-            <li><a href="#works" class="anim-link">High-Compute VPS</a></li>
-            <li><a href="#works" class="anim-link">Anti-DDoS Game Nodes</a></li>
-            <li><a href="#works" class="anim-link">NVMe Ceph Storage</a></li>
-            <li><a href="#works" class="anim-link">Bare Metal Servers</a></li>
+            <li><a href="#works" class="anim-link">VM lifecycle</a></li>
+            <li><a href="#works" class="anim-link">Guest console</a></li>
+            <li><a href="/apps" class="anim-link">VPS App Store</a></li>
+            <li><a href="#services" class="anim-link">Admin security</a></li>
           </ul>
         </div>
 
@@ -2982,25 +2944,25 @@
             <li><a href="/login" class="anim-link">Client Area / Login</a></li>
             <li><a href="/register" class="anim-link">Register Account</a></li>
             <li><a href="/dashboard" class="anim-link">Web Panel Console</a></li>
-            <li><a href="#services" class="anim-link">API & Automation</a></li>
+            <li><a href="https://github.com/aryandw27/VM-Panel" class="anim-link" target="_blank" rel="noopener noreferrer">Source code</a></li>
           </ul>
         </div>
 
         
         <div>
-          <div class="footer-col-title">Network</div>
+          <div class="footer-col-title">Resources</div>
           <ul class="footer-links">
-            <li><a href="#about" class="anim-link">Global Datacenters</a></li>
-            <li><a href="#about" class="anim-link">Looking Glass</a></li>
-            <li><a href="#stats" class="anim-link">Network Status</a></li>
-            <li><a href="#services" class="anim-link">BGP Peering (AS20473)</a></li>
+            <li><a href="#about" class="anim-link">About the project</a></li>
+            <li><a href="#stats" class="anim-link">Platform overview</a></li>
+            <li><a href="https://github.com/aryandw27/VM-Panel/blob/main/README.md" class="anim-link" target="_blank" rel="noopener noreferrer">Documentation</a></li>
+            <li><a href="https://github.com/aryandw27/VM-Panel/issues" class="anim-link" target="_blank" rel="noopener noreferrer">Report an issue</a></li>
           </ul>
         </div>
       </div>
 
       
       <div class="footer-legal-bar">
-        <div>&copy; 2025 SiliconHost Cloud Infrastructure Inc. All rights reserved.</div>
+        <div>&copy; <%= new Date().getFullYear() %> SiliconHost VM Panel</div>
         <div class="legal-links">
           <a href="#privacy" class="anim-link">Privacy Policy</a>
           <a href="#terms" class="anim-link">Terms of Service</a>
@@ -3037,13 +2999,13 @@
         <li>
           <button class="navmenu-item-btn" data-target="works">
             <span class="navmenu-idx">02</span>
-            <span>Compute Plans</span>
+            <span>Platform</span>
           </button>
         </li>
         <li>
           <button class="navmenu-item-btn" data-target="services">
             <span class="navmenu-idx">03</span>
-            <span>Services</span>
+            <span>Features</span>
           </button>
         </li>
         <li>
@@ -3055,7 +3017,7 @@
         <li>
           <button class="navmenu-item-btn" data-target="stats">
             <span class="navmenu-idx">05</span>
-            <span>Network</span>
+            <span>Overview</span>
           </button>
         </li>
         <li>
@@ -3070,7 +3032,7 @@
     <div class="shell navmenu-bottom">
       <div>Local time &mdash; <span id="navLiveTime">9:41am</span></div>
       <a href="<%= (typeof user !== 'undefined' && user) ? '/dashboard' : '/register' %>"
-        class="navmenu-deploy-cta">Deploy a Server &rarr;</a>
+        class="navmenu-deploy-cta">Open the panel &rarr;</a>
     </div>
   </div>
 

@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================="
-echo "  Starting vPanel Pro Container Service  "
+echo "  Starting SiliconHost VM Panel Container  "
 echo "========================================="
 
 
@@ -28,11 +28,14 @@ if [ -f "/app/scripts/createuser.js" ]; then
       await initDb();
       const count = await collections.users.countDocuments();
       if (count === 0) {
-        console.log('[vpanel] Creating default administrator user: admin / admin123');
+        if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length < 12) {
+          throw new Error('Set ADMIN_PASSWORD to a value of at least 12 characters before first startup.');
+        }
+        console.log('[SiliconHost] Creating the configured administrator account.');
         const u = await auth.createUser({
           username: process.env.ADMIN_USER || 'admin',
-          email: process.env.ADMIN_EMAIL || 'admin@vpanel.local',
-          password: process.env.ADMIN_PASSWORD || 'admin123',
+          email: process.env.ADMIN_EMAIL || 'admin@siliconhost.local',
+          password: process.env.ADMIN_PASSWORD,
           name: 'Administrator',
           role: 'admin',
           verified: 1
@@ -40,9 +43,9 @@ if [ -f "/app/scripts/createuser.js" ]; then
         await collections.users.updateOne({ id: u.id }, { $set: { root_admin: 1 } });
       }
       await closeDb();
-    })().catch(console.error);
-  " || true
+    })().catch((error) => { console.error(error); process.exit(1); });
+  "
 fi
 
-echo "[vpanel] Ready on port 3001 (Web) and port 3002 (API)"
+echo "[SiliconHost] Ready on port 3001 (Web) and port 3002 (API)"
 exec "$@"

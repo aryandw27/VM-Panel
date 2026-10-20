@@ -34,8 +34,12 @@ async function main() {
   }
 
   const username = args.username || process.env.CREATEUSER_USERNAME || (await ask('Username', process.env.ADMIN_USERNAME || 'admin'));
-  const email = args.email || process.env.CREATEUSER_EMAIL || (await ask('Email', process.env.ADMIN_EMAIL || 'admin@vpanel.local'));
-  const password = args.password || process.env.CREATEUSER_PASSWORD || (await ask('Password', process.env.ADMIN_PASSWORD || 'admin12345'));
+  const email = args.email || process.env.CREATEUSER_EMAIL || (await ask('Email', process.env.ADMIN_EMAIL || 'admin@siliconhost.local'));
+  const password = args.password || process.env.CREATEUSER_PASSWORD || process.env.ADMIN_PASSWORD
+    || (process.stdin.isTTY ? await ask('Password') : '');
+  if (password.length < 12) {
+    throw new Error('Administrator password must contain at least 12 characters. Use an interactive prompt or pass a secure password via the environment.');
+  }
   const role = args.role || 'admin';
   const name = args.name || username;
 

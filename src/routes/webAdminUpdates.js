@@ -29,7 +29,7 @@ router.get('/', async (req, res, next) => {
         auto_check: settings.get('update.auto_check') !== '0',
         backup_before: settings.get('update.backup_before') !== '0',
         auto_pm2_restart: settings.get('update.auto_pm2_restart') !== '0',
-        repo: settings.get('update.repo') || 'nobita329/vpanel-pro',
+        repo: settings.get('update.repo') || 'aryandw27/VM-Panel',
       },
     });
   } catch (err) {

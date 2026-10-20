@@ -1084,6 +1084,7 @@ router.use('/admin/updates', require('./webAdminUpdates'));
 router.use('/admin/api', require('./webAdminApiManager'));
 router.use('/admin/audit', require('./webAdminAudit'));
 router.use('/admin/plugins', require('./webAdminPlugins'));
+router.use('/admin/logging', require('./webAdminLogging'));
 router.use('/admin/resources', (req, res) => res.redirect('/admin'));
 
 module.exports = router;

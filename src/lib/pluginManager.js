@@ -97,7 +97,11 @@ class PluginManager extends EventEmitter {
   async emitPlatformEvent(eventName, payload = {}, meta = {}) {
     this.emit(eventName, payload, meta);
 
-    
+    const discordLogger = require('../../bot/discordLogger');
+    discordLogger.emitPlatformEvent(eventName, payload, meta).catch((error) => {
+      logger.warn(`[discord-logger] Event dispatch failed for ${eventName}: ${error.message}`);
+    });
+
     try {
       await ensureConnected();
       await collections.audit_events.insertOne({
@@ -149,7 +153,7 @@ class PluginManager extends EventEmitter {
 
     const color = colorMap[eventName] || 0x6366f1;
     const embed = {
-      title: `vPanel Pro Event: ${eventName}`,
+      title: `SiliconHost VM Panel Event: ${eventName}`,
       description: payload.message || `Platform event **${eventName}** triggered.`,
       color,
       timestamp: new Date().toISOString(),
@@ -157,19 +161,18 @@ class PluginManager extends EventEmitter {
         .filter(([k]) => k !== 'message' && typeof payload[k] !== 'object')
         .slice(0, 8)
         .map(([k, v]) => ({ name: k, value: String(v), inline: true })),
-      footer: { text: 'vPanel Pro Virtualization Platform' },
+      footer: { text: 'SiliconHost VM Panel' },
     };
 
     await axios.post(plugin.webhook_url, {
-      username: 'vPanel Pro Bot',
-      avatar_url: 'https://vpanel.io/icon.png',
+      username: 'SiliconHost VM Panel',
       embeds: [embed],
     }, { timeout: 8000 });
   }
 
   async dispatchTelegram(plugin, eventName, payload) {
     if (!plugin.bot_token || !plugin.chat_id) return;
-    const text = `*vPanel Pro Alert*\nEvent: \`${eventName}\`\n${payload.message || ''}\nTime: ${new Date().toISOString()}`;
+    const text = `*SiliconHost VM Panel Alert*\nEvent: \`${eventName}\`\n${payload.message || ''}\nTime: ${new Date().toISOString()}`;
     const url = `https://api.telegram.org/bot${plugin.bot_token}/sendMessage`;
     await axios.post(url, {
       chat_id: plugin.chat_id,
@@ -200,7 +203,7 @@ class PluginManager extends EventEmitter {
     if (!plugin) throw new Error(`Plugin '${pluginId}' not found`);
 
     const testPayload = {
-      message: `Test alert from vPanel Pro for plugin ${plugin.name}`,
+      message: `Test alert from SiliconHost VM Panel for plugin ${plugin.name}`,
       status: 'OK',
       test: true,
       timestamp: new Date().toISOString(),

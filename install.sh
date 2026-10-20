@@ -29,7 +29,7 @@ safe_clear() {
   clear 2>/dev/null || true
 }
 
-log_info()  { printf "${CYAN}${BOLD}[vPanel]${NC} %b\n" "$*"; }
+log_info()  { printf "${CYAN}${BOLD}[SiliconHost]${NC} %b\n" "$*"; }
 log_ok()    { printf "${GREEN}${BOLD}[✔ SUCCESS]${NC} %b\n" "$*"; }
 log_warn()  { printf "${YELLOW}${BOLD}[⚠ WARN]${NC} %b\n" "$*"; }
 log_err()   { printf "${RED}${BOLD}[✖ ERROR]${NC} %b\n" "$*" >&2; }
@@ -249,8 +249,8 @@ collect_install_settings() {
     read -r -p "Admin username [${ADMIN_USER:-admin}]: " INPUT_USER
     ADMIN_USER="${INPUT_USER:-${ADMIN_USER:-admin}}"
 
-    read -r -p "Admin email [${ADMIN_EMAIL:-admin@vpanel.local}]: " INPUT_EMAIL
-    ADMIN_EMAIL="${INPUT_EMAIL:-${ADMIN_EMAIL:-admin@vpanel.local}}"
+    read -r -p "Admin email [${ADMIN_EMAIL:-admin@siliconhost.local}]: " INPUT_EMAIL
+    ADMIN_EMAIL="${INPUT_EMAIL:-${ADMIN_EMAIL:-admin@siliconhost.local}}"
 
     if [ -z "$ADMIN_PASS" ]; then
       local confirm_pass
@@ -331,7 +331,7 @@ do_install() {
   safe_clear
   printf "${CYAN}${BOLD}"
   echo "================================================================="
-  echo "             🚀 Installing vPanel Pro on $OS_NAME                "
+  echo "             🚀 Installing SiliconHost VM Panel on $OS_NAME      "
   echo "================================================================="
   printf "${NC}\n"
 
@@ -725,7 +725,7 @@ EOF
       npm install -g pm2 --no-audit --no-fund
     fi
 
-    log_info "Starting vPanel Pro cluster with PM2..."
+    log_info "Starting SiliconHost VM Panel cluster with PM2..."
     pm2 delete vpanel >/dev/null 2>&1 || true
     pm2 start ecosystem.config.js || pm2 start src/server.js --name vpanel
     pm2 save
@@ -740,7 +740,7 @@ EOF
   echo ""
   printf "${GREEN}${BOLD}"
   echo "================================================================="
-  echo "           🎉 vPanel Pro Successfully Installed & Online!        "
+  echo "      🎉 SiliconHost VM Panel Successfully Installed & Online!    "
   echo "================================================================="
   printf "${NC}\n"
   echo "  🌐 Web Panel URL:    http://${s_ip}:${PANEL_PORT}"
@@ -784,7 +784,7 @@ do_create_user() {
     read -r -p "Enter Username [default: ${A_USER}]: " INPUT_USER
     A_USER="${INPUT_USER:-$A_USER}"
 
-    local DEF_EMAIL="${A_USER}@vpanel.local"
+    local DEF_EMAIL="${A_USER}@siliconhost.local"
     read -r -p "Enter Email [default: ${A_EMAIL:-$DEF_EMAIL}]: " INPUT_EMAIL
     A_EMAIL="${INPUT_EMAIL:-${A_EMAIL:-$DEF_EMAIL}}"
 
@@ -801,7 +801,7 @@ do_create_user() {
   fi
 
   if [ -z "$A_EMAIL" ]; then
-    A_EMAIL="${A_USER}@vpanel.local"
+    A_EMAIL="${A_USER}@siliconhost.local"
   fi
 
   if [ -z "$A_PASS" ]; then
@@ -853,7 +853,7 @@ do_update() {
   safe_clear
   printf "${CYAN}${BOLD}"
   echo "================================================================="
-  echo "                   🔄 Updating vPanel Pro                        "
+  echo "             🔄 Updating SiliconHost VM Panel                     "
   echo "================================================================="
   printf "${NC}\n"
 
@@ -878,7 +878,7 @@ do_update() {
     pm2 save
   fi
 
-  log_ok "vPanel Pro has been updated successfully!"
+  log_ok "SiliconHost VM Panel has been updated successfully!"
   echo ""
 }
 
@@ -895,10 +895,10 @@ do_pm2_menu() {
     echo "================================================================="
     printf "${NC}\n"
     echo "  [1] 📊 View Status (pm2 status)"
-    echo "  [2] 🔄 Restart vPanel (pm2 restart vpanel)"
-    echo "  [3] ⏹️  Stop vPanel (pm2 stop vpanel)"
-    echo "  [4] ▶️  Start vPanel (pm2 start vpanel)"
-    echo "  [5] 📜 View Live Logs (pm2 logs vpanel)"
+    echo "  [2] 🔄 Restart SiliconHost VM Panel (PM2 process: vpanel)"
+    echo "  [3] ⏹️  Stop SiliconHost VM Panel"
+    echo "  [4] ▶️  Start SiliconHost VM Panel"
+    echo "  [5] 📜 View SiliconHost VM Panel logs"
     echo "  [6] ⚡ Enable Auto-start on System Boot"
     echo "  [7] 🚫 Disable Auto-start on System Boot"
     echo "  [0] 🔙 Back to Main Menu"
@@ -913,21 +913,21 @@ do_pm2_menu() {
         read -r -p "Press Enter to continue..." _
         ;;
       2)
-        log_info "Restarting vPanel cluster..."
+        log_info "Restarting SiliconHost VM Panel..."
         pm2 restart all
-        log_ok "vPanel restarted."
+        log_ok "SiliconHost VM Panel restarted."
         read -r -p "Press Enter to continue..." _
         ;;
       3)
-        log_info "Stopping vPanel cluster..."
+        log_info "Stopping SiliconHost VM Panel..."
         pm2 stop all
-        log_ok "vPanel stopped."
+        log_ok "SiliconHost VM Panel stopped."
         read -r -p "Press Enter to continue..." _
         ;;
       4)
-        log_info "Starting vPanel cluster..."
+        log_info "Starting SiliconHost VM Panel..."
         pm2 start ecosystem.config.js || pm2 start all
-        log_ok "vPanel started."
+        log_ok "SiliconHost VM Panel started."
         read -r -p "Press Enter to continue..." _
         ;;
       5)
@@ -965,12 +965,12 @@ do_uninstall() {
   safe_clear
   printf "${RED}${BOLD}"
   echo "================================================================="
-  echo "                 🗑️  Uninstall vPanel Pro                        "
+  echo "           🗑️  Uninstall SiliconHost VM Panel                     "
   echo "================================================================="
   printf "${NC}\n"
 
   if [ "$NON_INTERACTIVE" -eq 0 ]; then
-    read -r -p "Are you sure you want to completely uninstall vPanel Pro? (y/N): " CONFIRM
+    read -r -p "Are you sure you want to completely uninstall SiliconHost VM Panel? (y/N): " CONFIRM
     if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
       log_info "Uninstall aborted."
       return
@@ -1004,7 +1004,7 @@ do_uninstall() {
     log_info "Preserving database and VM disks."
   fi
 
-  log_ok "vPanel Pro has been uninstalled successfully."
+  log_ok "SiliconHost VM Panel has been uninstalled successfully."
   echo ""
 }
 
@@ -1016,7 +1016,7 @@ show_menu() {
     safe_clear
     printf "${CYAN}${BOLD}"
     echo "================================================================="
-    echo "                   ⚡ vPanel Pro Management Suite                "
+    echo "             ⚡ SiliconHost VM Panel Management Suite              "
     echo "            Full Support: Debian 11/12/13 & Ubuntu 20/22/24      "
     echo "================================================================="
     printf "${NC}"
@@ -1052,7 +1052,7 @@ show_menu() {
         read -r -p "Press Enter to return to menu..." _
         ;;
       0)
-        log_info "Exiting vPanel Pro Installer. Goodbye!"
+        log_info "Exiting SiliconHost VM Panel Installer. Goodbye!"
         exit 0
         ;;
       *)
@@ -1071,7 +1071,7 @@ ACTION=""
 USE_PM2=1
 NON_INTERACTIVE=0
 ADMIN_USER="${ADMIN_USERNAME:-${ADMIN_USER:-}}"
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin@vpanel.local}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@siliconhost.local}"
 ADMIN_PASS="${ADMIN_PASSWORD:-${ADMIN_PASS:-}}"
 ADMIN_PASS_WAS_GENERATED=0
 ADMIN_USER="${ADMIN_USER:-admin}"
@@ -1141,12 +1141,12 @@ while [ $# -gt 0 ]; do
       echo "  2, createuser, --create-admin   Create or reset admin account"
       echo "  3, update, --update             Pull updates and rebuild"
       echo "  4, pm2, --pm2                   PM2 cluster management menu"
-      echo "  5, uninstall, --uninstall       Uninstall vPanel Pro"
+      echo "  5, uninstall, --uninstall       Uninstall SiliconHost VM Panel"
       echo "  --menu                           Open management menu"
       echo ""
       echo "Options:"
       echo "  --admin-user <user>             Admin username (default: admin)"
-      echo "  --admin-email <email>           Admin email (default: admin@vpanel.local)"
+      echo "  --admin-email <email>           Admin email (default: admin@siliconhost.local)"
       echo "  --admin-pass <pass>             Admin password (interactive prompt recommended)"
       echo "  --panel-port <port>             Web panel port (default: 3001)"
       echo "  --no-pm2                        Skip PM2 process manager"
