@@ -206,6 +206,7 @@ docker compose up -d --build
 
 The authenticated **App Store** installs reviewed WordPress and OpenClaw setups on VMs owned by the signed-in user. It also provides an advanced custom-script option, limited to 16 KB and requiring explicit confirmation; custom scripts run as root inside the selected guest. Installs require a running VM with working SSH access.
 
+- Guest ports can be reused across VMs. Host ports must be unique on the panel host; when a requested host port is already occupied, SiliconHost automatically assigns a free port from the configured VM port range and saves the updated mapping. To expose multiple VMs on the same public HTTP/HTTPS port, configure an external reverse proxy with separate hostnames.
 - **WordPress** installs a persistent Docker Compose stack. SiliconHost selects an available host port and saves a QEMU forward to guest port `8080`. Restart the VM to activate the mapping, allow the selected port through the host firewall, then finish setup in WordPress.
 - **OpenClaw** is installed from its official source and started with token authentication. It is not publicly forwarded by default. Use the private SSH tunnel and one-time gateway token shown after installation, then configure a model provider in OpenClaw.
 - Docker-based catalog apps currently support Debian and Ubuntu guests. The app store does not silently execute third-party catalog scripts; custom scripts are supplied by the VM owner.

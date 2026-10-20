@@ -33,7 +33,7 @@
     <div class="form-group">
       <label>Port Forwards (comma separated host:guest)</label>
       <input id="fFwds" value="<%= (vm.port_forwards || []).map(f => f.host + ':' + f.guest).join(',') %>"/>
-      <div class="form-hint">e.g. 18080:80, 18443:443 — forwards host port to the VM port. Host ports must be unused on this machine.</div>
+      <div class="form-hint">e.g. 18080:80, 18443:443 — guest ports may be reused by other VMs. If a host port is occupied, SiliconHost assigns an available host port from the configured VM range.</div>
     </div>
     <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
   </div>
@@ -62,8 +62,13 @@ async function saveSettings() {
     port_forwards: val('fFwds').split(',').map(s => s.trim()).filter(Boolean).map(p => { const [h, g] = p.split(':'); return { host: parseInt(h,10), guest: parseInt(g,10) }; }),
   };
   try {
-    await VP.api('/servers/<%= vm.id %>/settings', { method: 'POST', body });
-    VP.toast('Settings saved', 'success');
+    const response = await VP.api('/servers/<%= vm.id %>/settings', { method: 'POST', body });
+    const savedForwards = response?.vm?.port_forwards || [];
+    const remapped = body.port_forwards.some((forward, index) => savedForwards[index]
+      && Number(forward.host) !== Number(savedForwards[index].host));
+    VP.toast(remapped
+      ? 'Settings saved. An occupied host port was automatically reassigned; review the updated mapping.'
+      : 'Settings saved', 'success');
     setTimeout(() => location.reload(), 800);
   } catch (e) { VP.toast(VP.errorMessage(e), 'error'); }
 }

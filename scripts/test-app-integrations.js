@@ -106,22 +106,19 @@ test('VM port-forward settings reject duplicate and invalid host ports', () => {
   assert.throws(() => vmService.normalizePortForwards([{ host: 70000, guest: 80 }]), /between 1 and 65535/);
 });
 
-test('VM host-forward validation rejects occupied and already-reserved ports', async () => {
+test('VM host-forward validation automatically remaps occupied and already-reserved ports', async () => {
   const vm = { id: 12, ssh_port: 25512, agent_port: 26112, vnc_port: 25912 };
-  await assert.rejects(
-    vmService.validateHostForwards(vm, [{ host: 18080, guest: 8080 }], {
+  const occupied = await vmService.validateHostForwards(vm, [{ host: 18080, guest: 8080 }], {
       reservedVms: [],
-      isPortAvailable: async () => false,
-    }),
-    /Host port 18080 is already in use/
-  );
-  await assert.rejects(
-    vmService.validateHostForwards(vm, [{ host: 18080, guest: 8080 }], {
+      isPortAvailable: async (port) => port !== 18080,
+    });
+  assert.deepEqual(occupied, [{ host: 25501, guest: 8080 }]);
+
+  const reserved = await vmService.validateHostForwards(vm, [{ host: 18080, guest: 8080 }], {
       reservedVms: [{ id: 13, name: 'existing-vm', port_forwards: [{ host: 18080, guest: 80 }] }],
       isPortAvailable: async () => true,
-    }),
-    /already reserved by existing-vm/
-  );
+    });
+  assert.deepEqual(reserved, [{ host: 25501, guest: 8080 }]);
 });
 
 test('VM startup explains QEMU host-port bind failures with the mapping to change', () => {

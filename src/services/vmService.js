@@ -147,17 +147,40 @@ async function validateHostForwards(vm, forwards, { reservedVms = null, isPortAv
     }
   }
 
-  for (const forward of normalized) {
-    if (ownReserved.has(forward.host)) {
-      throw new TypeError(`Host port ${forward.host} conflicts with this VM's SSH, agent, or VNC port.`);
+  const usedPorts = new Set([...ownReserved, ...reservedByOther.keys()]);
+  const min = Math.max(1024, parseInt(settings.get('vm.auto_port_min') || config.autoPortMin, 10));
+  const max = Math.min(65535, parseInt(settings.get('vm.auto_port_max') || config.autoPortMax, 10));
+  if (!Number.isInteger(min) || !Number.isInteger(max) || min > max) {
+    throw new Error('The configured VM host-port range is invalid. Correct it in admin settings before saving port forwards.');
+  }
+  async function allocateReplacement(guestPort) {
+    for (let port = min; port <= max; port += 1) {
+      if (usedPorts.has(port)) continue;
+      if (await isPortAvailable(port)) {
+        usedPorts.add(port);
+        return port;
+      }
     }
+    throw new Error(`No free host port is available in the configured VM range ${min}-${max} for guest port ${guestPort}.`);
+  }
+
+  const validated = [];
+  for (const forward of normalized) {
     const owner = reservedByOther.get(forward.host);
-    if (owner) throw new TypeError(`Host port ${forward.host} is already reserved by ${owner}. Choose a different host port.`);
-    if (!await isPortAvailable(forward.host)) {
-      throw new TypeError(`Host port ${forward.host} is already in use on this machine. Choose a different unused host port for guest port ${forward.guest} and try again.`);
+    const available = !ownReserved.has(forward.host)
+      && !owner
+      && !usedPorts.has(forward.host)
+      && await isPortAvailable(forward.host);
+    if (available) {
+      usedPorts.add(forward.host);
+      validated.push(forward);
+    } else {
+      const host = await allocateReplacement(forward.guest);
+      logger.info(`[vm] remapped requested host port ${forward.host} to ${host} for guest port ${forward.guest} on VM ${vm.id}`);
+      validated.push({ ...forward, host });
     }
   }
-  return normalized;
+  return validated;
 }
 
 function inUsePort(port) {
@@ -700,7 +723,19 @@ async function startUnlocked(vm, { user = null } = {}) {
   }
   await ensureVncPort(vm);
   await ensureAgentPort(vm);
-  await validateHostForwards(vm, vm.port_forwards);
+  const forwards = await validateHostForwards(vm, vm.port_forwards);
+  if (JSON.stringify(forwards) !== JSON.stringify(parseForwards(vm.port_forwards))) {
+    vm.port_forwards = forwards;
+    await collections.vms.updateOne(
+      { id: Number(vm.id) },
+      { $set: { port_forwards: JSON.stringify(forwards), updated_at: now() } }
+    );
+    try {
+      fs.appendFileSync(path.join(vmDir(vm), 'boot.log'),
+        `\r\n[vPanel] Host port conflicts were automatically remapped: ${forwards.map((forward) => `${forward.host}:${forward.guest}`).join(', ')}\r\n`,
+        'utf8');
+    } catch (_) {}
+  }
   const dir = vmDir(vm);
   const bootLogPath = path.join(dir, 'boot.log');
   const sessionHeader = `\r\n=== [vPanel] Starting VM "${vm.name}" at ${new Date().toISOString()} ===\r\n\r\n`;
