@@ -97,6 +97,8 @@ test('repeated requests automatically block an IP until the punishment expires',
 test('manual blocks require valid IPs and can be explicitly removed', async () => {
   const { service, blocks } = createFixture();
   assert.equal(service.normalizeIp('::ffff:203.0.113.8'), '203.0.113.8');
+  assert.equal(service.getClientIp(request('::ffff:203.0.113.8')), '203.0.113.8');
+  assert.equal(service.getClientIp(request('invalid-ip')), null);
   await assert.rejects(service.blockIp('attacker.invalid'), /valid IPv4 or IPv6/);
   await service.blockIp('2001:db8::1', { reason: 'Manual investigation' });
   assert.equal((await service.checkRequest(request('2001:db8::1'))).allowed, false);

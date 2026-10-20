@@ -116,6 +116,7 @@ const defaultSettings = {
   'vm.os_list': JSON.stringify([
     ['Ubuntu 22.04', 'ubuntu', 'jammy', 'https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img', 'ubuntu', 'root'],
     ['Ubuntu 24.04', 'ubuntu', 'noble', 'https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img', 'ubuntu', 'root'],
+    ['Ubuntu 25.10', 'ubuntu', 'questing', 'https://cloud-images.ubuntu.com/releases/questing/release/ubuntu-25.10-server-cloudimg-amd64.img', 'ubuntu', 'root'],
     ['Ubuntu 26.04', 'ubuntu', 'resolute', 'https://cloud-images.ubuntu.com/releases/resolute/release/ubuntu-26.04-server-cloudimg-amd64.img', 'ubuntu', 'root'],
     ['Debian 11', 'debian', 'bullseye', 'https://cloud.debian.org/images/cloud/bullseye/latest/debian-11-generic-amd64.qcow2', 'debian', 'root'],
     ['Debian 12', 'debian', 'bookworm', 'https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2', 'debian', 'root'],
@@ -126,7 +127,8 @@ const defaultSettings = {
     ['CentOS Stream 10', 'centos', 'stream10', 'https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2', 'cloud-user', 'root'],
     ['AlmaLinux 9', 'almalinux', '9', 'https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2', 'almalinux', 'root'],
     ['AlmaLinux 10', 'almalinux', '10', 'https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2', 'almalinux', 'root'],
-    ['Rocky Linux 9', 'rockylinux', '9', 'https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2', 'rocky', 'root']
+    ['Rocky Linux 9', 'rockylinux', '9', 'https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2', 'rocky', 'root'],
+    ['Rocky Linux 10', 'rockylinux', '10', 'https://download.rockylinux.org/pub/rocky/10/images/x86_64/Rocky-10-GenericCloud.latest.x86_64.qcow2', 'rocky', 'root']
   ]),
   'vm.os_catalog_version': '0',
   'vm.template_repo': 'https://github.com/nobita329/Template.git',
@@ -293,17 +295,19 @@ async function initDb() {
       }
     }
     const osCatalogVersion = Number(settingsCache['vm.os_catalog_version'] || 0);
-    if (osCatalogVersion < 2) {
+    if (osCatalogVersion < 3) {
       let osList = settingsCache['vm.os_list'];
       if (typeof osList === 'string') osList = JSON.parse(osList);
       if (!Array.isArray(osList)) throw new Error('vm.os_list must be an array');
 
       const catalogAdditions = [
+        ['Ubuntu 25.10', 'ubuntu', 'questing', 'https://cloud-images.ubuntu.com/releases/questing/release/ubuntu-25.10-server-cloudimg-amd64.img', 'ubuntu', 'root'],
         ['Ubuntu 26.04', 'ubuntu', 'resolute', 'https://cloud-images.ubuntu.com/releases/resolute/release/ubuntu-26.04-server-cloudimg-amd64.img', 'ubuntu', 'root'],
         ['Kali Linux 2026.2', 'kali', '2026.2', 'https://kali.download/cloud-images/current/kali-linux-2026.2-cloud-genericcloud-amd64.tar.xz', 'kali', 'root'],
         ['Fedora 43', 'fedora', '43', 'https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2', 'fedora', 'root'],
         ['CentOS Stream 10', 'centos', 'stream10', 'https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2', 'cloud-user', 'root'],
         ['AlmaLinux 10', 'almalinux', '10', 'https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2', 'almalinux', 'root'],
+        ['Rocky Linux 10', 'rockylinux', '10', 'https://download.rockylinux.org/pub/rocky/10/images/x86_64/Rocky-10-GenericCloud.latest.x86_64.qcow2', 'rocky', 'root'],
       ];
       const currentFedora = catalogAdditions.find((entry) => entry[0] === 'Fedora 43');
       const updatedOsList = osList.map((entry) => entry[0] === 'Fedora 40' ? currentFedora : entry);
@@ -319,11 +323,11 @@ async function initDb() {
       );
       await collections.settings.updateOne(
         { key: 'vm.os_catalog_version' },
-        { $set: { key: 'vm.os_catalog_version', value: '2' } },
+        { $set: { key: 'vm.os_catalog_version', value: '3' } },
         { upsert: true }
       );
       settingsCache['vm.os_list'] = serializedOsList;
-      settingsCache['vm.os_catalog_version'] = '2';
+      settingsCache['vm.os_catalog_version'] = '3';
     }
   } catch (e) {
     logger.warn('[mongo] settings cache init: ' + e.message);
