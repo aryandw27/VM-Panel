@@ -113,11 +113,28 @@ show_mongo_diagnostics() {
   node -e "require('dotenv').config(); const { MongoClient } = require('mongodb'); const c = new MongoClient(process.env.MONGO_URI || '', { serverSelectionTimeoutMS: 5000 }); c.connect().then(() => c.close()).catch((error) => { console.error('MongoDB connection error: ' + error.name + (error.code ? ' (code ' + error.code + ')' : '')); process.exitCode = 1; });" 2>&1 || true
 }
 
-recover_generated_mongo_credentials() {
+recover_local_mongo_credentials() {
   local recovery_container="mongodb-credential-recovery"
   local attempt=0
+  local recovery_username="admin"
+  local recovery_password="$generated_mongo_password"
+  local recovery_script
 
-  if [ "$env_preexisting" -ne 0 ] || ! docker logs mongodb 2>&1 | grep -E -q '"msg":"Failed to authenticate".*"user":"admin"'; then
+  if ! mongo_uri_is_local || ! docker logs mongodb 2>&1 | grep -E -q '"msg":"Failed to authenticate".*"user":"admin"'; then
+    return 1
+  fi
+  if [ "$env_preexisting" -ne 0 ]; then
+    local mongo_auth
+    mongo_auth="$(mongo_uri_auth_base64)" || return 1
+    recovery_username="$(MONGO_AUTH_BASE64="$mongo_auth" node -e "process.stdout.write(JSON.parse(Buffer.from(process.env.MONGO_AUTH_BASE64, 'base64').toString()).username)")"
+    recovery_password="$(MONGO_AUTH_BASE64="$mongo_auth" node -e "process.stdout.write(JSON.parse(Buffer.from(process.env.MONGO_AUTH_BASE64, 'base64').toString()).password)")"
+    if [ "$recovery_username" != "admin" ]; then
+      log_warn "Cannot automatically recover MongoDB authentication because the configured local username is not admin."
+      return 1
+    fi
+  fi
+  if [[ "$recovery_username$recovery_password" == *$'\n'* || "$recovery_username$recovery_password" == *$'\r'* ]]; then
+    log_err "MongoDB credentials contain line breaks and cannot be safely recovered automatically."
     return 1
   fi
   if docker ps -a --format "{{.Names}}" | grep -Fxq "$recovery_container"; then
@@ -125,7 +142,7 @@ recover_generated_mongo_credentials() {
     return 1
   fi
 
-  log_warn "MongoDB's existing data volume has a different admin password. Updating only the MongoDB admin credential to match this new installation; database contents will be preserved."
+  log_warn "MongoDB's local data volume has an admin password that does not match the configured MONGO_URI. Updating only that credential; database contents will be preserved."
   if ! docker stop mongodb >/dev/null; then
     log_err "Could not stop MongoDB safely before credential recovery."
     return 1
@@ -158,25 +175,42 @@ recover_generated_mongo_credentials() {
     return 1
   fi
 
-  if ! docker exec -i "$recovery_container" mongosh --quiet <<EOF
-const adminDb = db.getSiblingDB("admin");
-if (adminDb.getUser("admin")) {
-  adminDb.updateUser("admin", { pwd: "$generated_mongo_password" });
-} else {
-  adminDb.createUser({
-    user: "admin",
-    pwd: "$generated_mongo_password",
-    roles: [{ role: "root", db: "admin" }]
-  });
-}
-EOF
-  then
+  recovery_script="$(mktemp)" || {
+    docker stop "$recovery_container" >/dev/null 2>&1 || true
+    docker rm "$recovery_container" >/dev/null 2>&1 || true
+    docker start mongodb >/dev/null 2>&1 || true
+    log_err "Could not create a temporary MongoDB recovery script."
+    return 1
+  }
+  chmod 600 "$recovery_script"
+  if ! MONGO_RECOVERY_USERNAME="$recovery_username" MONGO_RECOVERY_PASSWORD="$recovery_password" node -e '
+    const username = JSON.stringify(process.env.MONGO_RECOVERY_USERNAME);
+    const password = JSON.stringify(process.env.MONGO_RECOVERY_PASSWORD);
+    process.stdout.write(
+      `const adminDb = db.getSiblingDB("admin");\n` +
+      `if (adminDb.getUser(${username})) {\n` +
+      `  adminDb.updateUser(${username}, { pwd: ${password} });\n` +
+      `} else {\n` +
+      `  adminDb.createUser({ user: ${username}, pwd: ${password}, roles: [{ role: "root", db: "admin" }] });\n` +
+      `}\n`
+    );
+  ' > "$recovery_script"; then
+    rm -f "$recovery_script"
+    docker stop "$recovery_container" >/dev/null 2>&1 || true
+    docker rm "$recovery_container" >/dev/null 2>&1 || true
+    docker start mongodb >/dev/null 2>&1 || true
+    log_err "Could not generate the MongoDB credential recovery script; the original container was restarted."
+    return 1
+  fi
+  if ! docker exec -i "$recovery_container" mongosh --quiet < "$recovery_script"; then
+    rm -f "$recovery_script"
     docker stop "$recovery_container" >/dev/null 2>&1 || true
     docker rm "$recovery_container" >/dev/null 2>&1 || true
     docker start mongodb >/dev/null 2>&1 || true
     log_err "MongoDB admin credential update failed; the original database container was restarted."
     return 1
   fi
+  rm -f "$recovery_script"
 
   if ! docker stop "$recovery_container" >/dev/null || ! docker rm "$recovery_container" >/dev/null; then
     docker start mongodb >/dev/null 2>&1 || true
@@ -187,7 +221,7 @@ EOF
     log_err "MongoDB credentials were updated, but its original container could not be restarted."
     return 1
   fi
-  log_ok "MongoDB admin credential now matches the generated .env configuration; existing database contents were preserved."
+  log_ok "MongoDB admin credential now matches the configured MONGO_URI; existing database contents were preserved."
   return 0
 }
 
@@ -450,8 +484,20 @@ EOF
           sleep 1
           existing_attempt=$((existing_attempt + 1))
         done
+        if [ "$mongo_ready" -eq 0 ] && recover_local_mongo_credentials; then
+          existing_attempt=0
+          while [ "$existing_attempt" -lt 30 ]; do
+            if mongo_connection_works; then
+              log_ok "Existing MongoDB now accepts the preserved MONGO_URI."
+              mongo_ready=1
+              break
+            fi
+            sleep 1
+            existing_attempt=$((existing_attempt + 1))
+          done
+        fi
         if [ "$mongo_ready" -eq 0 ]; then
-          log_err "Existing MongoDB container did not accept the preserved MONGO_URI. Its container and data were left untouched."
+          log_err "Existing MongoDB container did not accept the preserved MONGO_URI. Its data volume was preserved."
           show_mongo_diagnostics
           exit 1
         fi
@@ -547,6 +593,18 @@ EOF
           sleep 1
           local_attempt=$((local_attempt + 1))
         done
+        if [ "$mongo_ready" -eq 0 ] && recover_local_mongo_credentials; then
+          local_attempt=0
+          while [ "$local_attempt" -lt 30 ]; do
+            if mongo_connection_works; then
+              log_ok "Local MongoDB now accepts the preserved MONGO_URI."
+              mongo_ready=1
+              break
+            fi
+            sleep 1
+            local_attempt=$((local_attempt + 1))
+          done
+        fi
         if [ "$mongo_ready" -eq 0 ]; then
           log_err "MongoDB did not accept the existing MONGO_URI. Its container and volume were left in place; check the URI credentials and Docker logs."
           show_mongo_diagnostics
@@ -598,7 +656,7 @@ EOF
       attempts=$((attempts + 1))
     done
 
-    if [ "$mongo_ready" -eq 0 ] && [ "$env_preexisting" -eq 0 ] && recover_generated_mongo_credentials; then
+    if [ "$mongo_ready" -eq 0 ] && recover_local_mongo_credentials; then
       log_info "Waiting for MongoDB after credential recovery..."
       attempts=0
       while [ "$attempts" -lt 30 ]; do

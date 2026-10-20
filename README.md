@@ -118,10 +118,10 @@ sudo bash install.sh
 # If MongoDB still fails, the installer prints the container exit status,
 # recent MongoDB logs, and the connection error category to help identify
 # unsupported CPU features, port conflicts, or stale database credentials.
-# On a fresh install only, if MongoDB explicitly rejects the newly generated
-# admin password while reusing `mongodb_data`, the installer updates that
-# database admin credential in an isolated, localhost-only maintenance
-# container. MongoDB collections and files are not deleted.
+# If a local MongoDB explicitly rejects the configured `admin` password while
+# reusing `mongodb_data`, the installer updates only that credential in an
+# isolated, localhost-only maintenance container. MongoDB collections and
+# files are not deleted; unreachable non-local databases are never modified.
 
 # Or 1-line unattended install
 sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.local --admin-pass 'your_secure_password'
