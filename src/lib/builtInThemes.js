@@ -3,15 +3,15 @@ const themes = [
     id: 'light-neumorphism',
     name: 'Light',
     mode: 'light',
-    description: 'A crisp white workspace with tactile controls and clear blue, red, green, and yellow actions.',
-    colors: ['#ffffff', '#ffffff', '#2563eb', '#263244'],
+    description: 'A clean light workspace with restrained blue accents, balanced surfaces, and clear status colors.',
+    colors: ['#f7f8fa', '#ffffff', '#4c73c9', '#28313d'],
   },
   {
     id: 'dark-neumorphism',
     name: 'Dark',
     mode: 'dark',
-    description: 'A deep charcoal workspace with raised surfaces, soft highlights, and crisp action colors.',
-    colors: ['#0b0f14', '#141a22', '#60a5fa', '#e8edf4'],
+    description: 'A refined charcoal workspace with restrained SiliconHost blue, clear hierarchy, and quiet surfaces.',
+    colors: ['#0c0e12', '#11151b', '#83a7ff', '#e8ebf0'],
   },
 ];
 

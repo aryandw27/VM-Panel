@@ -2,7 +2,7 @@
 <%- include('../partials/ambient') %><%- include('../partials/topbar') %><%- include('../partials/sidebar') %>
 <main class="main theme-page" id="themePage" data-selected-theme="<%= panelThemeId || 'default' %>">
   <div class="theme-page-head">
-    <div><p class="theme-eyebrow">PERSONALIZE YOUR WORKSPACE</p><h1>Appearance</h1><p class="muted">Choose Light or Dark. Both themes use tactile neumorphic surfaces, raised controls, and clear status colors.</p></div>
+    <div><p class="theme-eyebrow">PERSONALIZE YOUR WORKSPACE</p><h1>Appearance</h1><p class="muted">Choose Light or Dark. Both use the SiliconHost design system: restrained surfaces, clear hierarchy, and consistent status colors.</p></div>
     <div class="theme-live-status" id="themeStatus" role="status" aria-live="polite"><span class="theme-status-dot"></span><span>Saved theme: <strong id="themeStatusName"><%= themes.find(t => t.id === panelThemeId)?.name || 'Dark' %></strong></span></div>
   </div>
   <section class="theme-gallery" aria-label="Light and dark themes">

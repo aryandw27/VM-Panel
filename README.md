@@ -19,17 +19,18 @@
 
 ## 🌟 Key Highlights & Features
 
-### 🎨 1. Full Arix Theme v2.1.3 Design System
-- **Cosmic Glassmorphism Visuals**: Clean dark-mode UI with customizable blur (`--panel-blur`), opacity (`--panel-transparency`), and glowing accent borders.
-- **Ambient Themes & Backgrounds**: Integrated 4K Wallpaper browser (Anime, Space, Dark/AMOLED, Cyberpunk, Nature), custom video backgrounds (`.mp4`, `.webm`), and interactive audio cues (`online`, `offline`, `copy`).
-- **Light & Dark Neumorphism Appearance**: Two polished white and charcoal themes with raised, shadowed controls; blue primary actions, red errors/stops, green success/starts, and yellow warnings.
+### 🎨 1. SiliconHost Design System
+- **Refined Interface**: Charcoal and light surfaces, one restrained blue brand accent, subtle borders, readable typography, compact controls, and quiet shadows.
+- **Optional Ambience**: Custom image/video backgrounds and interactive audio cues (`online`, `offline`, `copy`) remain available.
+- **Light & Dark Appearance**: Polished light and charcoal themes with consistent controls and clear success, warning, and error states.
+- **SiliconHost Design System**: Shared charcoal and light surfaces, restrained blue brand accent, compact spacing, subtle borders, consistent typography, and reduced-motion support across the admin panel, customer panel, and public website.
 - **Admin Rate Limits & IP Security**: Configure per-IP request thresholds and temporary automatic blocks, review privacy-limited browser/OS request analytics, and manage manual IP blocks.
   - Automatic protection starts at 120 requests per IP per minute, followed by a 15-minute block; administrators can adjust these limits under **Admin → Rate Limits & IP Security**. Request summaries expire after 30 days.
-- **Unified Navigation**: Arix responsive sidebar with active glowing indicators, collapsible state, mobile drawer, and topbar user controls.
+- **Unified Navigation**: Compact responsive sidebar, restrained active states, mobile drawer, and consistent topbar controls.
 
 ### 🖥️ 2. Signature Arix Server Console Dashboard
 - **Top Header & Spec Summary**: Displays server name, OS distro, allocated vCPUs, RAM, and SSH port.
-- **Unified Power Controls**: Real-time 3-state power button group (`START` with blue active glow, `RESTART`, `STOP` with danger red glow and safety confirmations).
+- **Unified Power Controls**: Real-time 3-state power button group with consistent action colors and safety confirmations.
 - **2-Column Split Console Grid**:
   - **Left (Terminal Window)**:
     - Multi-session SSH Terminal with **24/7 background persistence**.

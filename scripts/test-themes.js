@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { getTheme, getThemes, isThemeId } = require('../src/lib/builtInThemes');
 const { saveThemePreference } = require('../src/services/themePreferences');
 
-test('registry exposes exactly the Light and Dark neumorphic themes', () => {
+test('registry exposes exactly the Light and Dark SiliconHost themes', () => {
   const all = getThemes();
   assert.equal(all.length, 2);
   assert.equal(new Set(all.map((theme) => theme.id)).size, all.length);
