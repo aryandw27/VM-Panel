@@ -33,7 +33,7 @@
     <div class="form-group">
       <label>Port Forwards (comma separated host:guest)</label>
       <input id="fFwds" value="<%= (vm.port_forwards || []).map(f => f.host + ':' + f.guest).join(',') %>"/>
-      <div class="form-hint">e.g. 8080:80, 8443:443 — forwards host port to the VM port</div>
+      <div class="form-hint">e.g. 18080:80, 18443:443 — forwards host port to the VM port. Host ports must be unused on this machine.</div>
     </div>
     <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
   </div>

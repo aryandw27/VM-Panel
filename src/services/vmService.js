@@ -2,6 +2,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const os = require('os');
+const net = require('net');
 const { spawn, execSync, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
@@ -93,6 +94,70 @@ function parseForwards(str) {
     }
   }
   return out;
+}
+
+function normalizePortForwards(input) {
+  if (!Array.isArray(input)) throw new TypeError('Port forwards must be a list.');
+  const hosts = new Set();
+  return input.map((forward) => {
+    const host = Number(forward?.host);
+    const guest = Number(forward?.guest);
+    if (!Number.isInteger(host) || host < 1 || host > 65535 || !Number.isInteger(guest) || guest < 1 || guest > 65535) {
+      throw new TypeError('Each port forward must use host and guest ports between 1 and 65535.');
+    }
+    if (hosts.has(host)) throw new TypeError(`Host port ${host} is forwarded more than once.`);
+    hosts.add(host);
+    return { host, guest };
+  });
+}
+
+function checkHostPortAvailable(port) {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', (error) => {
+      if (error.code === 'EADDRINUSE' || error.code === 'EACCES') resolve(false);
+      else reject(error);
+    });
+    server.listen({ host: '0.0.0.0', port, exclusive: true }, () => {
+      server.close((error) => error ? reject(error) : resolve(true));
+    });
+  });
+}
+
+function reservedHostPorts(vm) {
+  return [
+    vm.ssh_port,
+    vm.agent_port,
+    vm.vnc_port,
+    ...parseForwards(vm.port_forwards).map((forward) => forward.host),
+  ].map(Number).filter((port) => Number.isInteger(port) && port > 0 && port <= 65535);
+}
+
+async function validateHostForwards(vm, forwards, { reservedVms = null, isPortAvailable = checkHostPortAvailable } = {}) {
+  const normalized = normalizePortForwards(forwards);
+  const ownReserved = new Set([vm.ssh_port, vm.agent_port, vm.vnc_port]
+    .map(Number).filter((port) => Number.isInteger(port) && port > 0));
+  const otherVms = reservedVms || await collections.vms.find({ id: { $ne: Number(vm.id) } }, {
+    projection: { id: 1, name: 1, ssh_port: 1, agent_port: 1, vnc_port: 1, port_forwards: 1 },
+  }).toArray();
+  const reservedByOther = new Map();
+  for (const other of otherVms) {
+    for (const port of reservedHostPorts(other)) {
+      if (!reservedByOther.has(port)) reservedByOther.set(port, other.name || `VM ${other.id}`);
+    }
+  }
+
+  for (const forward of normalized) {
+    if (ownReserved.has(forward.host)) {
+      throw new TypeError(`Host port ${forward.host} conflicts with this VM's SSH, agent, or VNC port.`);
+    }
+    const owner = reservedByOther.get(forward.host);
+    if (owner) throw new TypeError(`Host port ${forward.host} is already reserved by ${owner}. Choose a different host port.`);
+    if (!await isPortAvailable(forward.host)) {
+      throw new TypeError(`Host port ${forward.host} is already in use on this machine. Choose a different unused host port for guest port ${forward.guest} and try again.`);
+    }
+  }
+  return normalized;
 }
 
 function inUsePort(port) {
@@ -222,6 +287,36 @@ function buildQemuArgs(vm) {
   );
 
   return args;
+}
+
+function explainQemuStartFailure(output) {
+  try {
+    const forwardingFailure = String(output || '').match(/Could not set up host forwarding rule ['"]tcp::(\d+)-:(\d+)['"]/i);
+    if (forwardingFailure) {
+      const hostPort = Number(forwardingFailure[1]);
+      const guestPort = Number(forwardingFailure[2]);
+      return `QEMU could not bind host port ${hostPort} for guest port ${guestPort}. The host port may already be in use; change the mapping in VM Settings to a different unused host port, then try again.`;
+    }
+  } catch (_) {}
+  return 'QEMU exited before the VM reached running state. Review the VM boot log for details.';
+}
+
+function qemuStartFailure(vm, logOffset = 0) {
+  let output = '';
+  let fd;
+  try {
+    fd = fs.openSync(path.join(vmDir(vm), 'qemu.log'), 'r');
+    const size = fs.fstatSync(fd).size;
+    const start = Math.max(logOffset, size - 16 * 1024);
+    const buffer = Buffer.alloc(Math.max(0, size - start));
+    fs.readSync(fd, buffer, 0, buffer.length, start);
+    output = buffer.toString('utf8');
+  } catch (_) {
+    // Fall through to the generic startup error when QEMU produced no readable log.
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+  return explainQemuStartFailure(output);
 }
 
 function getBootLog(vm) {
@@ -512,7 +607,7 @@ async function create({ user, data }) {
   const agentPort = await allocAgentPort();
   const agentToken = genAgentToken();
   const guiMode = data.gui_mode === true || data.gui_mode === '1' || data.gui_mode === 'true';
-  const forwards = Array.isArray(data.port_forwards) ? data.port_forwards : [];
+  const forwards = normalizePortForwards(Array.isArray(data.port_forwards) ? data.port_forwards : []);
 
   const id = await getNextId('vms');
   const dir = path.join(VM_DIR, String(id));
@@ -548,6 +643,7 @@ async function create({ user, data }) {
     updated_at: now(),
   };
 
+  await validateHostForwards(vm, forwards);
   await collections.vms.insertOne(vm);
 
   const img = vm.img_file;
@@ -604,13 +700,16 @@ async function startUnlocked(vm, { user = null } = {}) {
   }
   await ensureVncPort(vm);
   await ensureAgentPort(vm);
+  await validateHostForwards(vm, vm.port_forwards);
   const dir = vmDir(vm);
   const bootLogPath = path.join(dir, 'boot.log');
   const sessionHeader = `\r\n=== [vPanel] Starting VM "${vm.name}" at ${new Date().toISOString()} ===\r\n\r\n`;
   try {
     fs.appendFileSync(bootLogPath, sessionHeader, 'utf8');
   } catch (_) {}
-  const logFile = fs.openSync(path.join(dir, 'qemu.log'), 'a');
+  const qemuLogPath = path.join(dir, 'qemu.log');
+  const logFile = fs.openSync(qemuLogPath, 'a');
+  const qemuLogOffset = fs.fstatSync(logFile).size;
   const args = buildQemuArgs(vm);
   logger.info(`[vm] starting VM ${Number(vm.id)} with QEMU`);
   let spawnError = null;
@@ -634,7 +733,7 @@ async function startUnlocked(vm, { user = null } = {}) {
       await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:start' });
       return { ok: true, state: 'running' };
     }
-    if (exited) throw Object.assign(new Error('QEMU exited before the VM reached running state.'), { category: 'vm_start_failed' });
+    if (exited) throw Object.assign(new Error(qemuStartFailure(vm, qemuLogOffset)), { category: 'vm_start_failed' });
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
   if (isRunning(vm)) {
@@ -725,10 +824,13 @@ async function updateUnlocked(vm, data, user) {
     'suspended', 'node_id', 'node_name'
   ];
   const $set = {};
+  if (data.port_forwards !== undefined) {
+    $set.port_forwards = JSON.stringify(await validateHostForwards(vm, data.port_forwards));
+  }
   for (const f of fields) {
     if (data[f] !== undefined) {
-      if (f === 'port_forwards' && Array.isArray(data[f])) $set[f] = JSON.stringify(data[f]);
-      else if (f === 'gui_mode' || f === 'start_on_boot') $set[f] = data[f] ? 1 : 0;
+      if (f === 'port_forwards') continue;
+      if (f === 'gui_mode' || f === 'start_on_boot') $set[f] = data[f] ? 1 : 0;
       else if (f === 'owner_id') $set[f] = parseInt(data[f], 10);
       else $set[f] = data[f];
     }
@@ -902,5 +1004,5 @@ function liveStats(vm) {
 module.exports = {
   VM_DIR, vmDir, dbVms, getVm, create, start, stop, restart, remove, update,
   resizeDisk, isRunning, statusOf, serializeVm, canAccess, allocPort, allocVncPort, allocAgentPort,
-  parseForwards, buildQemuArgs, usage, uptimeSeconds, memUsage, cpuUsage, diskActualUsage, liveStats, totalDiskUsage, startOnBootAll, getOsList, getBootLog, clearBootLog, hasKvm, transferOwner, withVmOperationLock, restoreDiskUnderVmLock, runBoundedProcess,
+  parseForwards, normalizePortForwards, validateHostForwards, checkHostPortAvailable, explainQemuStartFailure, qemuStartFailure, buildQemuArgs, usage, uptimeSeconds, memUsage, cpuUsage, diskActualUsage, liveStats, totalDiskUsage, startOnBootAll, getOsList, getBootLog, clearBootLog, hasKvm, transferOwner, withVmOperationLock, restoreDiskUnderVmLock, runBoundedProcess,
 };

@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const net = require('net');
 const config = require('../src/lib/config');
 const discordLogger = require('../bot/discordLogger');
 const appStore = require('../src/services/appStoreService');
@@ -92,6 +93,53 @@ test('VM port-forward parser handles legacy strings and serialized app-store map
   assert.deepEqual(vmService.parseForwards([{ host: 8080, guest: 80 }, { host: -1, guest: 99999 }]), [
     { host: 8080, guest: 80 },
   ]);
+});
+
+test('VM port-forward settings reject duplicate and invalid host ports', () => {
+  assert.deepEqual(vmService.normalizePortForwards([{ host: '18080', guest: '80' }]), [
+    { host: 18080, guest: 80 },
+  ]);
+  assert.throws(
+    () => vmService.normalizePortForwards([{ host: 8080, guest: 80 }, { host: 8080, guest: 443 }]),
+    /Host port 8080 is forwarded more than once/
+  );
+  assert.throws(() => vmService.normalizePortForwards([{ host: 70000, guest: 80 }]), /between 1 and 65535/);
+});
+
+test('VM host-forward validation rejects occupied and already-reserved ports', async () => {
+  const vm = { id: 12, ssh_port: 25512, agent_port: 26112, vnc_port: 25912 };
+  await assert.rejects(
+    vmService.validateHostForwards(vm, [{ host: 18080, guest: 8080 }], {
+      reservedVms: [],
+      isPortAvailable: async () => false,
+    }),
+    /Host port 18080 is already in use/
+  );
+  await assert.rejects(
+    vmService.validateHostForwards(vm, [{ host: 18080, guest: 8080 }], {
+      reservedVms: [{ id: 13, name: 'existing-vm', port_forwards: [{ host: 18080, guest: 80 }] }],
+      isPortAvailable: async () => true,
+    }),
+    /already reserved by existing-vm/
+  );
+});
+
+test('VM startup explains QEMU host-port bind failures with the mapping to change', () => {
+  assert.match(
+    vmService.explainQemuStartFailure("Could not set up host forwarding rule 'tcp::8080-:8080'"),
+    /host port 8080 for guest port 8080.*different unused host port/
+  );
+  assert.match(vmService.explainQemuStartFailure('unsupported QEMU option'), /Review the VM boot log/);
+});
+
+test('host port availability check detects a listener already bound on the host', async (t) => {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '0.0.0.0', resolve);
+  });
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  assert.equal(await vmService.checkHostPortAvailable(server.address().port), false);
 });
 
 test('QEMU host forwards share the existing guest NIC instead of adding extra default routes', () => {

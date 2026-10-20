@@ -296,7 +296,7 @@ router.post('/servers/:id/settings', loadVm, express.json(), async (req, res) =>
     const vm = await vmService.update(req.vm, req.body, req.user);
     return res.json({ ok: true, vm });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return res.status(e instanceof TypeError ? 400 : 500).json({ error: e.message });
   }
 });
 
