@@ -113,6 +113,84 @@ show_mongo_diagnostics() {
   node -e "require('dotenv').config(); const { MongoClient } = require('mongodb'); const c = new MongoClient(process.env.MONGO_URI || '', { serverSelectionTimeoutMS: 5000 }); c.connect().then(() => c.close()).catch((error) => { console.error('MongoDB connection error: ' + error.name + (error.code ? ' (code ' + error.code + ')' : '')); process.exitCode = 1; });" 2>&1 || true
 }
 
+recover_generated_mongo_credentials() {
+  local recovery_container="mongodb-credential-recovery"
+  local attempt=0
+
+  if [ "$env_preexisting" -ne 0 ] || ! docker logs mongodb 2>&1 | grep -E -q '"msg":"Failed to authenticate".*"user":"admin"'; then
+    return 1
+  fi
+  if docker ps -a --format "{{.Names}}" | grep -Fxq "$recovery_container"; then
+    log_err "MongoDB credential-recovery container already exists; refusing to change the database."
+    return 1
+  fi
+
+  log_warn "MongoDB's existing data volume has a different admin password. Updating only the MongoDB admin credential to match this new installation; database contents will be preserved."
+  if ! docker stop mongodb >/dev/null; then
+    log_err "Could not stop MongoDB safely before credential recovery."
+    return 1
+  fi
+  if ! docker run -d \
+    --name "$recovery_container" \
+    --network none \
+    -v mongodb_data:/data/db \
+    --entrypoint mongod \
+    mongo:latest \
+    --bind_ip 127.0.0.1 \
+    --noauth >/dev/null; then
+    docker start mongodb >/dev/null 2>&1 || true
+    log_err "Could not start isolated MongoDB credential recovery."
+    return 1
+  fi
+
+  while [ "$attempt" -lt 30 ]; do
+    if docker exec "$recovery_container" mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' 2>/dev/null | grep -q '^1$'; then
+      break
+    fi
+    sleep 1
+    attempt=$((attempt + 1))
+  done
+  if [ "$attempt" -ge 30 ]; then
+    docker stop "$recovery_container" >/dev/null 2>&1 || true
+    docker rm "$recovery_container" >/dev/null 2>&1 || true
+    docker start mongodb >/dev/null 2>&1 || true
+    log_err "Isolated MongoDB did not become ready; the original database container was restarted unchanged."
+    return 1
+  fi
+
+  if ! docker exec -i "$recovery_container" mongosh --quiet <<EOF
+const adminDb = db.getSiblingDB("admin");
+if (adminDb.getUser("admin")) {
+  adminDb.updateUser("admin", { pwd: "$generated_mongo_password" });
+} else {
+  adminDb.createUser({
+    user: "admin",
+    pwd: "$generated_mongo_password",
+    roles: [{ role: "root", db: "admin" }]
+  });
+}
+EOF
+  then
+    docker stop "$recovery_container" >/dev/null 2>&1 || true
+    docker rm "$recovery_container" >/dev/null 2>&1 || true
+    docker start mongodb >/dev/null 2>&1 || true
+    log_err "MongoDB admin credential update failed; the original database container was restarted."
+    return 1
+  fi
+
+  if ! docker stop "$recovery_container" >/dev/null || ! docker rm "$recovery_container" >/dev/null; then
+    docker start mongodb >/dev/null 2>&1 || true
+    log_err "Could not clean up the isolated MongoDB recovery container."
+    return 1
+  fi
+  if ! docker start mongodb >/dev/null; then
+    log_err "MongoDB credentials were updated, but its original container could not be restarted."
+    return 1
+  fi
+  log_ok "MongoDB admin credential now matches the generated .env configuration; existing database contents were preserved."
+  return 0
+}
+
 port_is_available() {
   local port="$1"
   if command -v ss >/dev/null 2>&1; then
@@ -519,6 +597,20 @@ EOF
       sleep 1
       attempts=$((attempts + 1))
     done
+
+    if [ "$mongo_ready" -eq 0 ] && [ "$env_preexisting" -eq 0 ] && recover_generated_mongo_credentials; then
+      log_info "Waiting for MongoDB after credential recovery..."
+      attempts=0
+      while [ "$attempts" -lt 30 ]; do
+        if mongo_connection_works; then
+          mongo_ready=1
+          log_ok "MongoDB is online with the generated installation credentials."
+          break
+        fi
+        sleep 1
+        attempts=$((attempts + 1))
+      done
+    fi
 
     if [ "$mongo_ready" -eq 0 ]; then
       log_err "MongoDB did not become ready within 30 seconds. Check Docker logs and the MONGO_URI in .env."
