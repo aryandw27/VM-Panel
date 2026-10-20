@@ -115,6 +115,9 @@ sudo bash install.sh
 # preserved URI credentials and `mongodb_data` volume. Non-local MongoDB URIs
 # are never replaced; restore access to that database before retrying. Do not
 # delete `.env` or MongoDB volumes as a troubleshooting step.
+# If MongoDB still fails, the installer prints the container exit status,
+# recent MongoDB logs, and the connection error category to help identify
+# unsupported CPU features, port conflicts, or stale database credentials.
 
 # Or 1-line unattended install
 sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.local --admin-pass 'your_secure_password'

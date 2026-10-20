@@ -103,6 +103,16 @@ mongo_uri_auth_base64() {
   node -e "require('dotenv').config(); try { const uri = new URL(process.env.MONGO_URI || ''); process.stdout.write(Buffer.from(JSON.stringify({ username: decodeURIComponent(uri.username), password: decodeURIComponent(uri.password) })).toString('base64')); } catch (_) { process.exit(1); }"
 }
 
+show_mongo_diagnostics() {
+  if command -v docker >/dev/null 2>&1 && docker ps -a --format "{{.Names}}" | grep -Fxq "mongodb"; then
+    log_warn "MongoDB container state:"
+    docker inspect --format 'status={{.State.Status}} exit_code={{.State.ExitCode}}' mongodb 2>/dev/null || true
+    log_warn "Recent MongoDB container logs:"
+    docker logs --tail 40 mongodb 2>&1 || true
+  fi
+  node -e "require('dotenv').config(); const { MongoClient } = require('mongodb'); const c = new MongoClient(process.env.MONGO_URI || '', { serverSelectionTimeoutMS: 5000 }); c.connect().then(() => c.close()).catch((error) => { console.error('MongoDB connection error: ' + error.name + (error.code ? ' (code ' + error.code + ')' : '')); process.exitCode = 1; });" 2>&1 || true
+}
+
 port_is_available() {
   local port="$1"
   if command -v ss >/dev/null 2>&1; then
@@ -364,6 +374,7 @@ EOF
         done
         if [ "$mongo_ready" -eq 0 ]; then
           log_err "Existing MongoDB container did not accept the preserved MONGO_URI. Its container and data were left untouched."
+          show_mongo_diagnostics
           exit 1
         fi
       fi
@@ -393,6 +404,7 @@ EOF
           done
           if [ "$mongo_ready" -eq 0 ]; then
             log_err "Existing MongoDB container did not accept the preserved MONGO_URI. Its container and data were left untouched."
+            show_mongo_diagnostics
             exit 1
           fi
         fi
@@ -459,6 +471,7 @@ EOF
         done
         if [ "$mongo_ready" -eq 0 ]; then
           log_err "MongoDB did not accept the existing MONGO_URI. Its container and volume were left in place; check the URI credentials and Docker logs."
+          show_mongo_diagnostics
           exit 1
         fi
         fi
@@ -509,6 +522,7 @@ EOF
 
     if [ "$mongo_ready" -eq 0 ]; then
       log_err "MongoDB did not become ready within 30 seconds. Check Docker logs and the MONGO_URI in .env."
+      show_mongo_diagnostics
       exit 1
     fi
     fi
