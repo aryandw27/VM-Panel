@@ -51,7 +51,7 @@
 
 ### 👑 3. Admin Control Plane vs. Tenant User Panel
 - **Cluster Nodes Architecture**: Manage virtualization nodes, resource capacity, daemon ports, and guest allocations.
-- **Virtual Machines & Storage**: Deploy VMs with cloud-init images (Ubuntu, Debian, Fedora, CentOS, AlmaLinux, Rocky Linux). Manage Local Directory, LVM, and NFS storage pools.
+- **Virtual Machines & Storage**: Deploy VMs from cloud-init-ready images (Ubuntu, Debian, Kali Linux, Fedora, CentOS Stream, AlmaLinux, Rocky Linux). Manage Local Directory, LVM, and NFS storage pools. Windows and Proxmox installer ISOs are not offered as cloud images; they require a separate manual installation workflow.
 - **User Management & Delegation**: Subuser access control, TOTP Two-Factor Authentication (2FA), and 1-click **Admin User Impersonation** with a floating return bar.
 - **MongoDB Management Studio**: Integrated Mongo-Express style database manager for collections, documents, and query execution.
 - **Command Palette (`Ctrl + K`)**: Universal spotlight modal for instant server search, navigation, and power dispatch.

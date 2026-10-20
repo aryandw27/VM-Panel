@@ -64,10 +64,12 @@
             <button type="button" class="os-filter-btn active" onclick="filterOs('all', this)">All</button>
             <button type="button" class="os-filter-btn" onclick="filterOs('ubuntu', this)">Ubuntu</button>
             <button type="button" class="os-filter-btn" onclick="filterOs('debian', this)">Debian</button>
+            <button type="button" class="os-filter-btn" onclick="filterOs('kali', this)">Kali</button>
             <button type="button" class="os-filter-btn" onclick="filterOs('fedora', this)">Fedora</button>
             <button type="button" class="os-filter-btn" onclick="filterOs('rhel', this)">RHEL/Enterprise</button>
           </div>
         </div>
+        <p class="muted text-sm mb-3">Only cloud-init-ready disk images are listed here. Windows and Proxmox installer ISOs require a separate manual installation workflow and are not deployable from this picker.</p>
 
         <div class="grid grid-3" id="osGrid" style="gap:12px">
           <% for (let i = 0; i < osList.length; i++) { 
@@ -78,6 +80,7 @@
              let icon = '🐧';
              if (distro.includes('ubuntu')) { color = '#e95420'; icon = '🟠'; }
              else if (distro.includes('debian')) { color = '#d70a53'; icon = '🔴'; }
+             else if (distro.includes('kali')) { color = '#557c94'; icon = 'K'; }
              else if (distro.includes('fedora')) { color = '#294172'; icon = '🔵'; }
              else if (distro.includes('centos')) { color = '#93227f'; icon = '🟣'; }
              else if (distro.includes('alma')) { color = '#0ea5e9'; icon = '🌐'; }

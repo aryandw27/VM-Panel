@@ -333,6 +333,7 @@ function createRequestSecurityService({
   return {
     getConfig,
     saveConfig,
+    normalizeIp,
     blockIp,
     unblockIp,
     checkRequest,

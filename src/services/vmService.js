@@ -371,6 +371,35 @@ async function download(url, dest) {
   });
 }
 
+function extractQcow2Archive(archivePath, outputPath, destinationDir) {
+  const listing = spawnSync('tar', ['-tJf', archivePath], { encoding: 'utf8' });
+  if (listing.status !== 0) {
+    throw new Error(`Unable to inspect cloud image archive: ${listing.stderr || listing.stdout}`);
+  }
+
+  const member = listing.stdout.split(/\r?\n/).find((entry) => (
+    entry.endsWith('.qcow2')
+    && !path.isAbsolute(entry)
+    && !entry.includes('/')
+    && !entry.includes('\\')
+    && entry !== '..'
+  ));
+  if (!member) throw new Error('Cloud image archive does not contain a safe QCOW2 disk image');
+
+  const extracted = path.resolve(destinationDir, member);
+  const root = path.resolve(destinationDir) + path.sep;
+  if (!extracted.startsWith(root)) throw new Error('Cloud image archive contains an unsafe disk image path');
+
+  const result = spawnSync('tar', ['-xJf', archivePath, '-C', destinationDir, '--', member], { encoding: 'utf8' });
+  if (result.status !== 0) {
+    throw new Error(`Unable to extract cloud image archive: ${result.stderr || result.stdout}`);
+  }
+  if (!fs.existsSync(extracted) || !fs.lstatSync(extracted).isFile()) {
+    throw new Error('Cloud image archive extraction did not produce a regular disk image');
+  }
+  fs.renameSync(extracted, outputPath);
+}
+
 function agentSeedPayload(vm) {
   const script = fs.readFileSync(path.join(config.root, 'scripts/vpanel-agent.py'), 'utf8');
   const unit = [
@@ -528,7 +557,14 @@ async function create({ user, data }) {
       const r = spawnSync('qemu-img', ['info', img], { encoding: 'utf8' });
       if (!fs.existsSync(img) || r.status !== 0) {
         logger.info(`[vm] downloading base image for ${osEntry[0]}`);
-        await download(vm.img_url, img);
+        if (vm.img_url.endsWith('.tar.xz')) {
+          const archive = path.join(dir, 'cloud-image.tar.xz');
+          await download(vm.img_url, archive);
+          extractQcow2Archive(archive, img, dir);
+          fs.unlinkSync(archive);
+        } else {
+          await download(vm.img_url, img);
+        }
       }
     }
   }
