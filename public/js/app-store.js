@@ -47,7 +47,7 @@
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'Installation failed.');
       showStatus(`${appName} installed successfully.`, 'success');
-      renderResult(data.result, vm);
+      renderResult(data.result, vm, appName);
     } catch (error) {
       showStatus(error.message || 'Installation failed. Check the VM SSH connection and try again.', 'error');
     } finally {
@@ -55,7 +55,7 @@
     }
   }
 
-  function renderResult(info, vm) {
+  function renderResult(info, vm, appName) {
     result.hidden = false;
     if (info.appId === 'wordpress') {
       result.innerHTML = `<h2>WordPress is running in your VM</h2>
@@ -77,8 +77,14 @@
           showStatus('Clipboard access is unavailable; select and copy the token above.', 'error');
         }
       });
-    } else {
+    } else if (info.appId === 'custom') {
       result.innerHTML = '<h2>Custom installer completed</h2><p>The script finished successfully. Verify the application and its services inside your VM.</p>';
+    } else {
+      const title = appName && appName !== 'custom script' ? `${appName} installed` : 'Installer completed';
+      const message = typeof info.message === 'string' && info.message.trim()
+        ? info.message
+        : 'The installer finished successfully. Verify the application and its services inside your VM.';
+      result.innerHTML = `<h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p>`;
     }
     result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }

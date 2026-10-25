@@ -3,20 +3,23 @@ const assert = require('node:assert/strict');
 const { getTheme, getThemes, isThemeId } = require('../src/lib/builtInThemes');
 const { saveThemePreference } = require('../src/services/themePreferences');
 
-test('registry exposes exactly the Light and Dark SiliconHost themes', () => {
+test('registry exposes the Light, Dark, and AMOLED Black SiliconHost themes', () => {
   const all = getThemes();
-  assert.equal(all.length, 2);
+  assert.equal(all.length, 3);
   assert.equal(new Set(all.map((theme) => theme.id)).size, all.length);
   assert.deepEqual(all.map(({ name, mode }) => ({ name, mode })), [
     { name: 'Light', mode: 'light' },
     { name: 'Dark', mode: 'dark' },
+    { name: 'AMOLED Black', mode: 'dark' },
   ]);
   assert.ok(isThemeId('light-neumorphism'));
   assert.ok(isThemeId('dark-neumorphism'));
+  assert.ok(isThemeId('amoled-black'));
   assert.equal(isThemeId('soft-neumorphism'), false);
   assert.equal(getTheme('soft-neumorphism').id, 'light-neumorphism');
   assert.equal(getTheme('midnight').id, 'dark-neumorphism');
   assert.equal(getTheme('retired-theme').id, 'dark-neumorphism');
+  assert.equal(getTheme('amoled-black').colors[0], '#000000');
 });
 
 test('preference persistence validates ID and scopes update to the authenticated user ID', async () => {

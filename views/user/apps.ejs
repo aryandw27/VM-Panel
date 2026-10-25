@@ -35,20 +35,34 @@
       <span class="muted">The VM must be running and reachable over SSH.</span>
     </section>
 
-    <section class="app-store-grid" aria-label="Reviewed applications">
-      <% apps.forEach((app) => { %>
-        <article class="card app-store-card">
-          <div class="app-store-card-top">
-            <span class="app-store-icon"><i data-lucide="<%= app.icon %>"></i></span>
-            <span class="app-store-category"><%= app.category %></span>
-          </div>
-          <h2><%= app.name %></h2>
-          <p class="muted"><%= app.description %></p>
-          <p class="app-store-exposure"><i data-lucide="network"></i><%= app.exposure %></p>
-          <button type="button" class="btn btn-primary app-store-launch" data-app-id="<%= app.id %>" data-app-name="<%= app.name %>">Install <%= app.name %></button>
-        </article>
-      <% }); %>
-    </section>
+    <%
+      const appGroups = [];
+      apps.forEach((app) => {
+        let group = appGroups.find((candidate) => candidate.name === app.category);
+        if (!group) {
+          group = { name: app.category, items: [] };
+          appGroups.push(group);
+        }
+        group.items.push(app);
+      });
+    %>
+    <% appGroups.forEach((group) => { %>
+      <h2 class="app-store-group-title"><%= group.name %></h2>
+      <section class="app-store-grid" aria-label="<%= group.name %> applications">
+        <% group.items.forEach((app) => { %>
+          <article class="card app-store-card">
+            <div class="app-store-card-top">
+              <span class="app-store-icon"><i data-lucide="<%= app.icon %>"></i></span>
+              <span class="app-store-category"><%= app.category %></span>
+            </div>
+            <h2><%= app.name %></h2>
+            <p class="muted"><%= app.description %></p>
+            <p class="app-store-exposure"><i data-lucide="network"></i><%= app.exposure %></p>
+            <button type="button" class="btn btn-primary app-store-launch" data-app-id="<%= app.id %>" data-app-name="<%= app.name %>">Install <%= app.name %></button>
+          </article>
+        <% }); %>
+      </section>
+    <% }); %>
 
     <section class="card app-store-custom">
       <div class="app-store-card-top">

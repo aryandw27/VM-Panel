@@ -9,6 +9,8 @@
 .app-store-target{display:grid;grid-template-columns:auto minmax(180px,320px) 1fr;align-items:center;gap:12px;margin-bottom:18px}
 .app-store-target label,.app-store-custom>label{font-size:13px;font-weight:650}
 .app-store-target .muted{font-size:12px}
+.app-store-group-title{display:flex;align-items:center;gap:12px;margin:22px 0 14px;font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-muted,#8994a5)}
+.app-store-group-title::after{content:"";flex:1;height:1px;background:var(--border-color,rgba(148,163,184,.16))}
 .app-store-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
 .app-store-card,.app-store-custom{padding:20px}
 .app-store-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}

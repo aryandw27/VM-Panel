@@ -10,8 +10,15 @@ const themes = [
     id: 'dark-neumorphism',
     name: 'Dark',
     mode: 'dark',
-    description: 'A refined charcoal workspace with restrained SiliconHost blue, clear hierarchy, and quiet surfaces.',
-    colors: ['#0c0e12', '#11151b', '#83a7ff', '#e8ebf0'],
+    description: 'A true #000000 background with charcoal surfaces, restrained SiliconHost blue, and clear hierarchy.',
+    colors: ['#000000', '#11151b', '#83a7ff', '#e8ebf0'],
+  },
+  {
+    id: 'amoled-black',
+    name: 'AMOLED Black',
+    mode: 'dark',
+    description: 'Pure AMOLED #000000 with deep near-black surfaces, crisp #22272e borders, and a sky-blue accent.',
+    colors: ['#000000', '#050607', '#8ab4ff', '#ffffff'],
   },
 ];
 
@@ -19,7 +26,6 @@ const byId = new Map(themes.map((theme) => [theme.id, Object.freeze(theme)]));
 const legacyThemeModes = new Map([
   ['default', 'dark'],
   ['midnight', 'dark'],
-  ['amoled-black', 'dark'],
   ['cyberpunk', 'dark'],
   ['ocean', 'dark'],
   ['forest', 'dark'],
