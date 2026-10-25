@@ -83,7 +83,7 @@
   <section class="card app-store-result" id="appStoreResult" hidden aria-live="polite"></section>
 </main>
 
-<script type="application/json" id="appStoreConfigDefs"><%- JSON.stringify(configDefs || {}) %></script>
+<script type="application/json" id="appStoreConfigDefs"><%- JSON.stringify(locals.configDefs || {}) %></script>
 
 <div class="app-store-modal" id="appStoreModal" hidden>
   <div class="app-store-modal-backdrop" data-modal-close></div>

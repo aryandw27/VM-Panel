@@ -87,19 +87,6 @@ router.get('/apps', async (req, res, next) => {
       apps: appStoreService.catalog,
       vms: rows.map(vmService.serializeVm),
       maxCustomScriptBytes: appStoreService.MAX_CUSTOM_SCRIPT_BYTES,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.get('/apps', async (req, res, next) => {
-  try {
-    const rows = await collections.vms.find({ owner_id: Number(req.user.id) }).sort({ name: 1 }).toArray();
-    render(res, 'apps', {
-      apps: appStoreService.catalog,
-      vms: rows.map(vmService.serializeVm),
-      maxCustomScriptBytes: appStoreService.MAX_CUSTOM_SCRIPT_BYTES,
       configDefs: appStoreService.configDefs(),
     });
   } catch (error) {
