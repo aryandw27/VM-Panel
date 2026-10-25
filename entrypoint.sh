@@ -18,7 +18,10 @@ fi
 mkdir -p /app/data /app/vms /app/uploads/logo /app/uploads/favicon /app/uploads/background /app/uploads/music /app/uploads/backup /app/storage/logs
 
 
-node scripts/build.js
+until node scripts/build.js; do
+  echo "[vpanel] MongoDB is not ready yet — retrying in 5 seconds..."
+  sleep 5
+done
 
 if [ -f "/app/scripts/createuser.js" ]; then
   node -e "

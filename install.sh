@@ -681,7 +681,7 @@ EOF
 
   log_info "Initializing storage directories & building assets..."
   mkdir -p data vms public/uploads/logo public/uploads/favicon public/uploads/background public/uploads/music public/uploads/avatar storage/backups storage/logs data/tmp
-  node scripts/build.js
+  node scripts/build.js || { log_err "Build and migrations failed — MongoDB appears to be down. Start it (systemctl start mongod / docker start mongodb) and re-install."; exit 1; }
 
 
   log_info "Step 8/8: Creating Administrator Account..."
@@ -870,7 +870,11 @@ do_update() {
   npm install --no-audit --no-fund
 
   log_info "Running build & database migrations..."
-  node scripts/build.js
+  BUILD_STATUS="ok"
+  if ! node scripts/build.js; then
+    BUILD_STATUS="failed"
+    log_warn "Build and/or database migrations reported errors. See the [error] lines above."
+  fi
 
   if command -v pm2 >/dev/null 2>&1; then
     log_info "Reloading PM2 cluster with zero downtime..."
@@ -878,7 +882,13 @@ do_update() {
     pm2 save
   fi
 
-  log_ok "SiliconHost VM Panel has been updated successfully!"
+  echo ""
+  if [ "$BUILD_STATUS" = "ok" ]; then
+    log_ok "SiliconHost VM Panel has been updated successfully!"
+  else
+    log_warn "The panel was reloaded with the new code, but migrations did not finish because MongoDB was unreachable."
+    log_warn "Start MongoDB first:  systemctl start mongod   (or: docker start mongodb)   — then re-run the update."
+  fi
   echo ""
 }
 

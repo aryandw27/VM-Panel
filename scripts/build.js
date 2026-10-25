@@ -5,9 +5,9 @@
 
 
 
-
 const fs = require('fs');
 const path = require('path');
+const net = require('net');
 const { execSync } = require('child_process');
 const config = require('../src/lib/config');
 const { initDb, closeDb, collections } = require('../src/lib/db');
@@ -17,6 +17,8 @@ const check = process.argv.includes('--check');
 const errors = [];
 const warnings = [];
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function ensureDir(d) {
   fs.mkdirSync(d, { recursive: true });
 }
@@ -24,6 +26,91 @@ function ensureDir(d) {
 function hasBin(b) {
   try { execSync(`which ${b}`, { stdio: 'ignore' }); return true; }
   catch (_) { return false; }
+}
+
+function parseMongoTarget(uri) {
+  try {
+    const url = new URL(uri);
+    const host = url.hostname || '127.0.0.1';
+    const port = Number(url.port || 27017);
+    return { host, port, isLocal: ['127.0.0.1', 'localhost', '::1'].includes(host) };
+  } catch (_) {
+    return { host: '127.0.0.1', port: 27017, isLocal: false };
+  }
+}
+
+function tcpReachable(host, port, timeout = 1200) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    const finish = (result) => {
+      socket.destroy();
+      resolve(result);
+    };
+    socket.setTimeout(timeout);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
+}
+
+function canSelfHealLocalMongo() {
+  return process.platform === 'linux'
+    && typeof process.getuid === 'function'
+    && process.getuid() === 0;
+}
+
+function startLocalMongo() {
+  for (const cmd of ['systemctl start mongod', 'systemctl start mongodb', 'service mongod start', 'service mongodb start']) {
+    try { execSync(cmd, { stdio: 'ignore', timeout: 20000 }); return true; } catch (_) {}
+  }
+  try {
+    execSync('docker ps -a --format "{{.Names}}" | grep -Fxq mongodb', { stdio: 'ignore', timeout: 10000, shell: '/bin/bash' });
+    execSync('docker start mongodb', { stdio: 'ignore', timeout: 30000 });
+    return true;
+  } catch (_) {}
+  return false;
+}
+
+async function connectDatabase() {
+  const target = parseMongoTarget(config.mongoUri);
+  let reachable = await tcpReachable(target.host, target.port);
+  let selfHealed = false;
+
+  if (!reachable && target.isLocal && canSelfHealLocalMongo()) {
+    console.log(`[info] MongoDB is not listening on ${target.host}:${target.port} — starting the local database service...`);
+    if (startLocalMongo()) {
+      selfHealed = true;
+      for (let i = 0; i < 24; i += 1) {
+        if (await tcpReachable(target.host, target.port, 900)) {
+          reachable = true;
+          break;
+        }
+        await sleep(500);
+      }
+    }
+    if (!reachable) console.log('[warn] MongoDB could not be brought online automatically.');
+  }
+
+  if (!reachable) {
+    console.log(`[warn] MongoDB is not reachable at ${target.host}:${target.port} — trying anyway (it may use a socket or replica set).`);
+  }
+
+  const attempts = reachable || selfHealed ? 5 : 2;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await initDb();
+      return true;
+    } catch (e) {
+      if (attempt < attempts) {
+        console.log(`[info] MongoDB not ready (attempt ${attempt}/${attempts}) — retrying...`);
+        await sleep(2000);
+      } else {
+        errors.push(`MongoDB connection failed: ${e.message}`);
+      }
+      await closeDb();
+    }
+  }
+  return false;
 }
 
 (async () => {
@@ -42,12 +129,13 @@ for (const d of [
 console.log('[ok] directories ready');
 
 
-try {
-  await initDb();
-  const userCount = await collections.users.countDocuments();
-  console.log(`[ok] database ready (${userCount} users)`);
-} catch (e) {
-  errors.push(`MongoDB connection failed: ${e.message}`);
+if (await connectDatabase()) {
+  try {
+    const userCount = await collections.users.countDocuments();
+    console.log(`[ok] database ready (${userCount} users)`);
+  } catch (e) {
+    warnings.push(`Database is connected but could not be queried: ${e.message}`);
+  }
 }
 
 
@@ -98,7 +186,19 @@ for (const w of warnings) console.log(`[warn] ${w}`);
 for (const e of errors) console.log(`[error] ${e}`);
 console.log('');
 
-if (check && (errors.length || warnings.length)) {
+if (errors.length) {
+  if (errors.some((message) => message.startsWith('MongoDB connection failed'))) {
+    console.log('       MongoDB must be running for the panel to work.');
+    console.log('       Local database:  systemctl start mongod   (or: docker start mongodb)');
+    console.log('       If MONGO_URI in .env points to another server, check that host instead.');
+    console.log('');
+  }
+  console.log('[error] Build finished with errors. Fix the issue and re-run: node scripts/build.js');
+  await closeDb();
+  process.exit(1);
+}
+
+if (check && warnings.length) {
   await closeDb();
   process.exit(1);
 }
