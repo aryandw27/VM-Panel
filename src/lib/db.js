@@ -2,16 +2,59 @@ const { MongoClient } = require('mongodb');
 const config = require('./config');
 const logger = require('./logger');
 
-const client = new MongoClient(config.mongoUri, {
-  maxPoolSize: 20,
-  minPoolSize: 2,
-  serverSelectionTimeoutMS: 5000,
-});
+function buildClient() {
+  return new MongoClient(config.mongoUri, {
+    maxPoolSize: 20,
+    minPoolSize: 2,
+    serverSelectionTimeoutMS: 5000,
+  });
+}
+
+let client = buildClient();
 
 let dbInstance = null;
 let connectingPromise = null;
 const collections = {};
 const settingsCache = {};
+// After a failed connect() or close() the driver topology cannot reopen — a fresh
+// client is required before the next connection attempt.
+let needsClientReset = false;
+
+const COLLECTION_NAMES = [
+  'users', 'vms', 'subusers', 'backups', 'schedules',
+  'activity_logs', 'settings', 'login_attempts', 'reset_tokens',
+  'notifications', 'counters',
+  'storage_pools', 'storage_volumes', 'iso_images',
+  'network_bridges', 'ip_pools', 'port_forwards', 'firewall_rules',
+  'api_keys', 'webhooks', 'audit_events', 'plugins_config',
+  'billing_plans', 'billing_invoices', 'billing_coupons',
+  'update_history', 'quotas', 'templates', 'user_sessions',
+  'nodes', 'node_allocations', 'locations',
+  'discord_bot_guilds', 'discord_bot_channels',
+  'ai_credentials', 'ai_conversations', 'ai_messages', 'ai_events', 'ai_preferences',
+  'ai_approvals', 'vm_operations', 'vm_operation_locks', 'incidents',
+  'security_request_analytics', 'security_ip_blocks',
+  'app_store_installs',
+];
+
+// Collection handles do not require a live connection — create them up front so
+// the panel can boot while MongoDB is down and retry on demand per request.
+function bindCollections() {
+  const database = client.db('vpanel');
+  for (const name of COLLECTION_NAMES) {
+    collections[name] = database.collection(name);
+  }
+}
+bindCollections();
+
+async function resetDbClient() {
+  try { await client.close(); } catch (_) {}
+  client = buildClient();
+  bindCollections();
+  dbInstance = null;
+  connectingPromise = null;
+  needsClientReset = false;
+}
 
 async function getNextId(name) {
   await ensureConnected();
@@ -195,26 +238,17 @@ const S = {
 
 async function initDb() {
   if (dbInstance) return { db: dbInstance, collections, settings: S, getNextId };
-  await client.connect();
+  if (needsClientReset) await resetDbClient();
+  try {
+    await client.connect();
+  } catch (error) {
+    needsClientReset = true;
+    throw error;
+  }
+  needsClientReset = false;
   dbInstance = client.db('vpanel');
 
-  const names = [
-    'users', 'vms', 'subusers', 'backups', 'schedules',
-    'activity_logs', 'settings', 'login_attempts', 'reset_tokens',
-    'notifications', 'counters',
-    'storage_pools', 'storage_volumes', 'iso_images',
-    'network_bridges', 'ip_pools', 'port_forwards', 'firewall_rules',
-    'api_keys', 'webhooks', 'audit_events', 'plugins_config',
-    'billing_plans', 'billing_invoices', 'billing_coupons',
-    'update_history', 'quotas', 'templates', 'user_sessions',
-    'nodes', 'node_allocations', 'locations',
-    'discord_bot_guilds', 'discord_bot_channels',
-    'ai_credentials', 'ai_conversations', 'ai_messages', 'ai_events', 'ai_preferences',
-    'ai_approvals', 'vm_operations', 'vm_operation_locks', 'incidents',
-    'security_request_analytics', 'security_ip_blocks',
-    'app_store_installs'
-  ];
-  for (const name of names) {
+  for (const name of COLLECTION_NAMES) {
     collections[name] = dbInstance.collection(name);
   }
 
@@ -368,6 +402,7 @@ async function closeDb() {
   } catch (_) {}
   dbInstance = null;
   connectingPromise = null;
+  needsClientReset = true;
 }
 
 module.exports = {
@@ -376,6 +411,7 @@ module.exports = {
   collections,
   getNextId,
   initDb,
+  resetDbClient,
   closeDb,
   settings: S,
   ensureConnected,

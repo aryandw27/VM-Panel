@@ -6,7 +6,8 @@ const fs = require('fs');
 const { Server } = require('socket.io');
 const config = require('./lib/config');
 const logger = require('./lib/logger');
-const { initDb, collections, settings } = require('./lib/db');
+const dbLib = require('./lib/db');
+const { initDb, collections, settings } = dbLib;
 const { getUserFromReq } = require('./middleware/auth');
 const vmService = require('./services/vmService');
 const sshService = require('./services/sshService');
@@ -338,7 +339,62 @@ async function bootstrap() {
     fs.mkdirSync(d, { recursive: true });
   }
 
-  await initDb();
+  try {
+    await initDb();
+    await deferredDbInit();
+  } catch (error) {
+    logger.error('[panel] MongoDB is unreachable at boot (' + (error.message || error) + ').');
+    logger.error('[panel] The web server keeps running and serves what it can; deferred database features retry every 15 seconds.');
+    logger.error('[panel] Start the database:  systemctl start mongod   (or: docker start mongodb)');
+    let retryTimer = null;
+    const attemptReconnect = async () => {
+      try {
+        await dbLib.ensureConnected();
+        clearInterval(retryTimer);
+        retryTimer = null;
+        logger.info('[panel] MongoDB reconnected — finishing deferred startup tasks.');
+        await deferredDbInit().catch((e) => logger.warn('[panel] deferred init: ' + (e && e.message)));
+      } catch (_) {}
+    };
+    retryTimer = setInterval(attemptReconnect, 15 * 1000);
+    if (typeof retryTimer.unref === 'function') retryTimer.unref();
+  }
+
+  try {
+    if ((await authService.countAdmins()) === 0) {
+      logger.warn('[panel] no administrator account exists; run `npm run createuser` or use the guided installer before exposing the panel');
+    }
+  } catch (error) {
+    logger.warn('[panel] could not verify the administrator account: ' + (error.message || error));
+  }
+
+  const webApp = createWebApp();
+  const apiApp = createApiApp();
+
+  const webServer = http.createServer(webApp);
+  const io = new Server(webServer, {
+    maxHttpBufferSize: 1e7,
+    pingInterval: 10000,
+    pingTimeout: 25000,
+    cors: { origin: '*' }
+  });
+  attachConsoleSocket(io);
+  attachVncProxy(webServer);
+
+  webServer.listen(config.panelPort, '0.0.0.0', () => {
+    logger.info(`[panel] SiliconHost VM Panel web running on http://0.0.0.0:${config.panelPort}`);
+  });
+  apiApp.listen(config.apiPort, '0.0.0.0', () => {
+    logger.info(`[panel] SiliconHost VM Panel API running on http://0.0.0.0:${config.apiPort}/api`);
+  });
+
+  
+  setTimeout(() => vmService.startOnBootAll(), 3000);
+
+  return { webServer, io, apiApp };
+}
+
+async function deferredDbInit() {
   const pluginManager = require('./lib/pluginManager');
   await pluginManager.init();
   const discordLogger = require('../bot/discordLogger');
@@ -368,36 +424,6 @@ async function bootstrap() {
   templateService.initDefaults().catch(e => logger.warn('[app] templateService init error: ' + e.message));
   const cacheService = require('./services/cacheService');
   cacheService.initAutoClear();
-
-  const webApp = createWebApp();
-  const apiApp = createApiApp();
-
-  const webServer = http.createServer(webApp);
-  const io = new Server(webServer, {
-    maxHttpBufferSize: 1e7,
-    pingInterval: 10000,
-    pingTimeout: 25000,
-    cors: { origin: '*' }
-  });
-  attachConsoleSocket(io);
-  attachVncProxy(webServer);
-
-  
-  if ((await authService.countAdmins()) === 0) {
-    logger.warn('[panel] no administrator account exists; run `npm run createuser` or use the guided installer before exposing the panel');
-  }
-
-  webServer.listen(config.panelPort, '0.0.0.0', () => {
-    logger.info(`[panel] SiliconHost VM Panel web running on http://0.0.0.0:${config.panelPort}`);
-  });
-  apiApp.listen(config.apiPort, '0.0.0.0', () => {
-    logger.info(`[panel] SiliconHost VM Panel API running on http://0.0.0.0:${config.apiPort}/api`);
-  });
-
-  
-  setTimeout(() => vmService.startOnBootAll(), 3000);
-
-  return { webServer, io, apiApp };
 }
 
 module.exports = { bootstrap, createWebApp, createApiApp };

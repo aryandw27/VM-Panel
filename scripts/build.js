@@ -59,16 +59,47 @@ function canSelfHealLocalMongo() {
     && process.getuid() === 0;
 }
 
+function startDockerDaemon() {
+  for (const cmd of ['systemctl start docker', 'service docker start']) {
+    try { execSync(cmd, { stdio: 'ignore', timeout: 30000 }); return true; } catch (_) {}
+  }
+  return false;
+}
+
+function findMongoContainer() {
+  try {
+    const list = execSync('docker ps -a --format "{{.Names}}|{{.Image}}"', { encoding: 'utf8', timeout: 10000 });
+    const lines = list.split('\n').map((l) => l.trim()).filter(Boolean);
+    const byName = lines.find((l) => l.split('|')[0] === 'mongodb');
+    const byImage = lines.find((l) => /mongo/i.test(l.split('|')[1] || ''));
+    return byName ? 'mongodb' : (byImage ? (byImage.split('|')[0] || null) : null);
+  } catch (_) {
+    return null;
+  }
+}
+
 function startLocalMongo() {
   for (const cmd of ['systemctl start mongod', 'systemctl start mongodb', 'service mongod start', 'service mongodb start']) {
     try { execSync(cmd, { stdio: 'ignore', timeout: 20000 }); return true; } catch (_) {}
   }
-  try {
-    execSync('docker ps -a --format "{{.Names}}" | grep -Fxq mongodb', { stdio: 'ignore', timeout: 10000, shell: '/bin/bash' });
-    execSync('docker start mongodb', { stdio: 'ignore', timeout: 30000 });
-    return true;
-  } catch (_) {}
-  return false;
+  // Docker-hosted database (the installer deploys MongoDB as a container that
+  // publishes 127.0.0.1:<port>:27017). The daemon itself may be down — without
+  // it, `docker start` fails and --restart unless-stopped cannot do its job.
+  const daemonStarted = startDockerDaemon();
+  let container = findMongoContainer();
+  if (!container && daemonStarted) {
+    try { execSync('sleep 2', { stdio: 'ignore', timeout: 5000 }); } catch (_) {}
+    container = findMongoContainer();
+  }
+  if (container) {
+    try {
+      execSync(`docker start ${container}`, { stdio: 'ignore', timeout: 30000 });
+      return true;
+    } catch (_) {}
+  }
+  // Bringing the daemon up may revive restart-enabled containers even when the
+  // Mongo container could not be identified by name or image.
+  return daemonStarted;
 }
 
 async function connectDatabase() {
