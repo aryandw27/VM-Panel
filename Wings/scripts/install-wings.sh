@@ -91,16 +91,25 @@ install_dependencies() {
   fi
 
   log_info "Installing hypervisor and helper packages..."
+  log_info "This downloads a few hundred MB and can take several minutes on a slow link."
   export DEBIAN_FRONTEND=noninteractive
-  apt-get update -y >/dev/null
-  apt-get install -y --no-install-recommends \
+  # Never stop on a conffile prompt or a lock held by unattended-upgrades.
+  local -a apt_opts=(
+    -y
+    -o DPkg::Lock::Timeout=900
+    -o Dpkg::Options::=--force-confdef
+    -o Dpkg::Options::=--force-confold
+    -o Acquire::Retries=5
+  )
+  apt-get "${apt_opts[@]}" update
+  apt-get "${apt_opts[@]}" install --no-install-recommends \
     curl wget ca-certificates git tar xz-utils \
-    qemu-system-x86 qemu-utils cloud-image-utils iproute2 >/dev/null
+    qemu-system-x86 qemu-utils cloud-image-utils iproute2
 
   if [ "$(node_major)" -lt 20 ]; then
     log_info "Installing Node.js 20 LTS..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
-    apt-get install -y nodejs >/dev/null
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get "${apt_opts[@]}" install nodejs
   fi
 
   log_ok "Dependencies ready (node $(node -v), $(qemu-system-x86_64 --version 2>/dev/null | head -n1 || echo 'QEMU missing'))"
