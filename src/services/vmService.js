@@ -11,6 +11,7 @@ const { collections, getNextId, settings, ensureConnected } = require('../lib/db
 const logger = require('../lib/logger');
 const { logActivity } = require('./activityService');
 const { createVmOperationCoordinator } = require('./vmOperationCoordinator');
+const wingsGateway = require('./wingsGateway');
 
 const VM_DIR = config.vmDir;
 const RUNNING_PREFIX = 'qemu-system';
@@ -411,12 +412,23 @@ function sameQemuProcess(vm, identity) {
   return Boolean(current && identity && current.pid === identity.pid && current.start_time === identity.start_time && current.pidfile === identity.pidfile);
 }
 
+function isRemoteVm(vm) {
+  return Boolean(vm && Number(vm.node_id) > 1);
+}
+
+async function getRemoteNode(nodeId) {
+  if (!nodeId || Number(nodeId) === 1) return null;
+  return collections.nodes.findOne({ id: Number(nodeId) });
+}
+
 function isRunning(vm) {
+  if (isRemoteVm(vm)) return vm.status === 'running';
   return Boolean(qemuProcess(vm));
 }
 
 function statusOf(vm) {
   if (vm && vm.suspended) return 'suspended';
+  if (isRemoteVm(vm)) return vm.status || 'stopped';
   return isRunning(vm) ? 'running' : 'stopped';
 }
 
@@ -451,7 +463,8 @@ function serializeVm(row) {
     start_on_boot: !!row.start_on_boot,
     suspended: !!row.suspended,
     status: statusOf(row),
-    dir: vmDir(row),
+    remote: isRemoteVm(row),
+    dir: isRemoteVm(row) ? (row.remote_dir || '') : vmDir(row),
   };
   delete out.agent_token;
   return out;
@@ -617,6 +630,18 @@ async function create({ user, data }) {
   const exists = await collections.vms.findOne({ name: vmName, owner_id: user.id });
   if (exists) throw new Error(`VM "${vmName}" already exists`);
 
+  const nodeId = parseInt(data.node_id, 10) || 1;
+  const remoteNode = await getRemoteNode(nodeId);
+  if (nodeId !== 1 && !remoteNode) throw new Error('The selected node does not exist.');
+  if (remoteNode && remoteNode.wings_enabled === 0) throw new Error(`Node "${remoteNode.name}" is not a Wings compute node.`);
+  const isRemote = Boolean(remoteNode);
+  if (isRemote && data.upload_image) {
+    throw new Error('Uploading a disk image is only supported on the local node. Deploy from a cloud image on remote nodes.');
+  }
+  if (isRemote && !wingsGateway.isOnline(nodeId)) {
+    throw new Error(`Node "${remoteNode.name}" is offline. Start the Wings service on that VPS before creating VMs there.`);
+  }
+
   const hostname = String(data.hostname || vmName).replace(/\s+/g, '-');
   const username = String(data.username || osEntry[4] || 'root').toLowerCase();
   const password = String(data.password || 'vpanel' + Math.random().toString(36).slice(2, 8));
@@ -625,7 +650,7 @@ async function create({ user, data }) {
   const cpus = parseInt(data.cpus || settings.get('vm.default_cpus') || '2', 10);
   const sshPort = data.ssh_port ? parseInt(data.ssh_port, 10) : await allocPort();
   if (isNaN(sshPort) || sshPort < 23 || sshPort > 65535) throw new Error('Invalid SSH port');
-  if (inUsePort(sshPort)) throw new Error(`Port ${sshPort} is already in use`);
+  if (!isRemote && inUsePort(sshPort)) throw new Error(`Port ${sshPort} is already in use`);
   const vncPort = await allocVncPort();
   const agentPort = await allocAgentPort();
   const agentToken = genAgentToken();
@@ -634,7 +659,7 @@ async function create({ user, data }) {
 
   const id = await getNextId('vms');
   const dir = path.join(VM_DIR, String(id));
-  fs.mkdirSync(dir, { recursive: true });
+  if (!isRemote) fs.mkdirSync(dir, { recursive: true });
 
   const vm = {
     id,
@@ -662,9 +687,58 @@ async function create({ user, data }) {
     startup_command: data.startup_command || '',
     status: 'stopped',
     notes: data.notes || '',
+    node_id: nodeId,
+    node_name: remoteNode ? remoteNode.name : 'Local Cluster / Node 1',
+    node_host: remoteNode ? (remoteNode.ssh_ip || remoteNode.fqdn || '') : '',
+    remote_dir: isRemote ? `/var/lib/wings/vms/${id}` : '',
     created_at: now(),
     updated_at: now(),
   };
+
+  if (isRemote) {
+    await validateHostForwards(vm, forwards, { isPortAvailable: async () => true });
+    await collections.vms.insertOne(vm);
+
+    await setDbStatus(id, 'provisioning');
+    try {
+      const result = await wingsGateway.request(nodeId, 'vm_create', {
+        id,
+        uuid: vm.uuid,
+        name: vmName,
+        hostname,
+        username,
+        password,
+        os_type: vm.os_type,
+        img_url: vm.img_url,
+        memory,
+        cpus,
+        disk_size: diskSize,
+        ssh_port: sshPort,
+        vnc_port: vncPort,
+        agent_port: agentPort,
+        port_forwards: forwards,
+        gui_mode: guiMode ? 1 : 0,
+        start_on_boot: vm.start_on_boot,
+      }, 15 * 60 * 1000);
+
+      await collections.vms.updateOne({ id }, {
+        $set: {
+          status: 'stopped',
+          remote_dir: (result && result.dir) || vm.remote_dir,
+          img_file: (result && result.disk_path) || null,
+          seed_file: (result && result.seed_path) || null,
+          updated_at: now(),
+        },
+      });
+    } catch (error) {
+      await collections.vms.updateOne({ id }, { $set: { status: 'failed', img_file: null, seed_file: null, updated_at: now() } }).catch(() => {});
+      await logActivity({ user_id: user.id, vm_id: id, event: 'vm:create_failed', details: { name: vmName, node_id: nodeId, error: error.message } });
+      throw new Error(`Node "${remoteNode.name}" could not provision this VM: ${error.message}`);
+    }
+
+    await logActivity({ user_id: user.id, vm_id: id, event: 'vm:create', details: { name: vmName, port: sshPort, node_id: nodeId } });
+    return getVm(id);
+  }
 
   await validateHostForwards(vm, forwards);
   await collections.vms.insertOne(vm);
@@ -714,7 +788,38 @@ async function create({ user, data }) {
   return getVm(id);
 }
 
+async function startRemoteVm(vm, { user = null } = {}) {
+  if (vm.status === 'running') return { ok: true, noop: true, state: 'running', message: 'already running' };
+  if (vm.suspended) throw Object.assign(new Error('This VM is suspended and cannot be started.'), { category: 'vm_suspended' });
+  await setDbStatus(vm.id, 'starting');
+  try {
+    await wingsGateway.request(vm.node_id, 'vm_start', { vm_id: Number(vm.id) });
+    await setDbStatus(vm.id, 'running');
+  } catch (error) {
+    await setDbStatus(vm.id, 'stopped');
+    throw Object.assign(new Error(`Wings node ${vm.node_id} could not start this VM: ${error.message}`), { category: 'vm_start_failed' });
+  }
+  await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:start', details: { node_id: vm.node_id } });
+  return { ok: true, state: 'running' };
+}
+
+async function stopRemoteVm(vm, { user = null, force = false } = {}) {
+  if (vm.status !== 'running') {
+    await setDbStatus(vm.id, 'stopped');
+    return { ok: true, noop: true, state: 'stopped', message: 'not running' };
+  }
+  try {
+    await wingsGateway.request(vm.node_id, 'vm_stop', { vm_id: Number(vm.id), force: Boolean(force) }, 90000);
+  } catch (error) {
+    throw Object.assign(new Error(`Wings node ${vm.node_id} could not stop this VM: ${error.message}`), { category: 'operation_uncertain' });
+  }
+  await setDbStatus(vm.id, 'stopped');
+  await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: force ? 'vm:kill' : 'vm:stop', details: { node_id: vm.node_id } });
+  return { ok: true, state: 'stopped' };
+}
+
 async function startUnlocked(vm, { user = null } = {}) {
+  if (isRemoteVm(vm)) return startRemoteVm(vm, { user });
   if (isRunning(vm)) return { ok: true, noop: true, state: 'running', message: 'already running' };
   if (vm.suspended) throw Object.assign(new Error('This VM is suspended and cannot be started.'), { category: 'vm_suspended' });
   if (!vm.img_file || !fs.existsSync(vm.img_file)) throw Object.assign(new Error('VM disk image is unavailable.'), { category: 'vm_image_unavailable' });
@@ -783,6 +888,7 @@ async function startUnlocked(vm, { user = null } = {}) {
 }
 
 async function stopUnlocked(vm, { user = null, force = false } = {}) {
+  if (isRemoteVm(vm)) return stopRemoteVm(vm, { user, force });
   const identity = qemuProcess(vm);
   if (!identity) {
     await setDbStatus(vm.id, 'stopped');
@@ -828,6 +934,20 @@ async function restart(vm, user, options = {}) {
 }
 
 async function removeUnlocked(vm, user) {
+  if (isRemoteVm(vm)) {
+    if (!wingsGateway.isOnline(vm.node_id)) {
+      throw new Error(`Node ${vm.node_id} is offline. Reconnect Wings before deleting this VM so its disk is not orphaned.`);
+    }
+    await wingsGateway.request(vm.node_id, 'vm_delete', { vm_id: Number(vm.id) }, 120000);
+    await collections.backups.deleteMany({ vm_id: Number(vm.id) });
+    await collections.schedules.deleteMany({ vm_id: Number(vm.id) });
+    await collections.subusers.deleteMany({ vm_id: Number(vm.id) });
+    await collections.activity_logs.deleteMany({ vm_id: Number(vm.id) });
+    await collections.vms.deleteOne({ id: Number(vm.id) });
+    await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:delete', details: { name: vm.name, node_id: vm.node_id } });
+    return { ok: true };
+  }
+
   if (isRunning(vm)) await stopUnlocked(vm, { user, force: true });
   try {
     await fs.promises.rm(vmDir(vm), { recursive: true, force: true });
@@ -874,7 +994,7 @@ async function updateUnlocked(vm, data, user) {
     $set.updated_at = now();
     await collections.vms.updateOne({ id: Number(vm.id) }, { $set });
   }
-  const needSeed = ['hostname', 'username', 'password'].some((f) => data[f] !== undefined);
+  const needSeed = !isRemoteVm(vm) && ['hostname', 'username', 'password'].some((f) => data[f] !== undefined);
   if (needSeed) writeSeed(vm);
   await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:update', details: data });
   return getVm(vm.id);

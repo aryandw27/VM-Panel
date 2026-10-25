@@ -211,7 +211,10 @@ router.get(['/admin/nodes/:id', '/admin/nodes/view/:id'], async (req, res, next)
     const locations = await nodeService.listLocations();
     const allNodes = await nodeService.listNodes();
     const nodeStats = await nodeService.getNodeLiveStats(req.params.id);
-    render(res, 'nodeDetail', { node, locations, allNodes, nodeStats });
+    const panelUrl = `${req.protocol || 'http'}://${req.get('host')}`;
+    const configScript = nodeService.generateWingsConfigScript(node, panelUrl);
+    const deploy = nodeService.generateDeployToken(node, panelUrl);
+    render(res, 'nodeDetail', { node, locations, allNodes, nodeStats, configScript, deployCommand: deploy.command });
   } catch (err) {
     next(err);
   }
@@ -241,7 +244,8 @@ router.post('/admin/nodes/:id/configuration/token', async (req, res) => {
   try {
     const node = await nodeService.getNode(req.params.id);
     if (!node) return res.status(404).json({ ok: false, error: 'Node not found' });
-    const deploy = nodeService.generateDeployToken(node);
+    const panelUrl = `${req.protocol || 'http'}://${req.get('host')}`;
+    const deploy = nodeService.generateDeployToken(node, panelUrl);
     res.json({ ok: true, token: deploy.token, node: deploy.node, command: deploy.command });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -295,7 +299,7 @@ router.post('/admin/nodes/mass/wings-control', express.json(), async (req, res) 
 
 router.get('/admin/nodes/:id/logs', async (req, res) => {
   try {
-    const logs = nodeService.getNodeLogs(req.params.id, req.query?.source || 'wings');
+    const logs = await nodeService.getNodeLogs(req.params.id, req.query?.source || 'wings');
     res.json({ ok: true, logs });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -305,9 +309,11 @@ router.get('/admin/nodes/:id/logs', async (req, res) => {
 router.post('/admin/nodes/:id/wings/control', express.json(), async (req, res) => {
   try {
     const act = req.body?.action || 'restart';
-    res.json({ ok: true, message: `Dispatched ${act} to Wings Agent` });
+    const result = await nodeService.controlNodeWings(req.params.id, act);
+    await activity.logActivity({ user_id: req.user.id, event: 'admin:node_wings_control', details: { id: req.params.id, action: act } });
+    res.json({ ok: true, action: act, result, message: `${act} sent to Wings over SSH` });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(400).json({ ok: false, error: err.message });
   }
 });
 
@@ -485,7 +491,8 @@ router.post('/admin/servers/:id/delete', express.json(), async (req, res) => {
 router.get('/admin/servers/create', async (req, res, next) => {
   try {
     const users = await collections.users.find({}, { projection: { id: 1, username: 1, email: 1 } }).sort({ username: 1 }).toArray();
-    render(res, 'create', { osList: vmService.getOsList(), users });
+    const nodes = await nodeService.listNodes();
+    render(res, 'create', { osList: vmService.getOsList(), users, nodes, selectedNodeId: parseInt(req.query.node_id, 10) || 1 });
   } catch (err) {
     next(err);
   }

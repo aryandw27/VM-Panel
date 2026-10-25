@@ -67,6 +67,7 @@ function createWebApp() {
     res.json({ ok: true, lang });
   });
 
+  app.use('/api/wings', require('./routes/wings'));
   app.use('/api/ai', require('./routes/ai'));
 
   app.get('/landing', (req, res) => {
@@ -116,6 +117,7 @@ function createApiApp() {
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
+  app.use('/api/wings', require('./routes/wings'));
   app.use('/api', require('./routes/api'));
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
   return app;
@@ -380,6 +382,8 @@ async function bootstrap() {
   });
   attachConsoleSocket(io);
   attachVncProxy(webServer);
+  // Wings daemons dial in over this channel; the panel never has to reach them first.
+  require('./services/wingsGateway').attach(webServer);
 
   webServer.listen(config.panelPort, '0.0.0.0', () => {
     logger.info(`[panel] SiliconHost VM Panel web running on http://0.0.0.0:${config.panelPort}`);

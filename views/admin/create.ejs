@@ -190,6 +190,20 @@
           </div>
         </div>
 
+        <div class="form-group mt-3">
+          <label>Compute Node</label>
+          <select id="fNode" onchange="updateSummary()">
+            <% for (const nd of (typeof nodes !== 'undefined' ? nodes : [])) { %>
+              <% const isLocal = Number(nd.id) === 1; %>
+              <% const isOnline = isLocal || (nd.wings && nd.wings.online); %>
+              <option value="<%= nd.id %>" <%= Number(nd.id) === (typeof selectedNodeId !== 'undefined' ? selectedNodeId : 1) ? 'selected' : '' %> <%= (!isLocal && !isOnline) ? 'disabled' : '' %>>
+                <%= nd.name %> — <%= isLocal ? 'panel host (local)' : (isOnline ? 'Wings online' : 'Wings offline') %><%= nd.ssh_ip ? ' · ' + nd.ssh_ip : '' %>
+              </option>
+            <% } %>
+          </select>
+          <div class="form-hint">Remote nodes create the VM on their own Wings VPS over the panel control channel.</div>
+        </div>
+
         <div class="form-group mt-2">
           <label>Server Owner</label>
           <select id="fOwner" onchange="updateSummary()">
@@ -633,6 +647,8 @@ async function createVm() {
   fd.append('start_on_boot', document.getElementById('fStartBoot').checked ? '1' : '0');
   fd.append('gui_mode', document.getElementById('fGui').checked ? '1' : '0');
   fd.append('owner_id', document.getElementById('fOwner').value);
+  const nodeSel = document.getElementById('fNode');
+  if (nodeSel) fd.append('node_id', nodeSel.value);
 
   const descVal = document.getElementById('fDescription')?.value?.trim();
   if (descVal) fd.append('description', descVal);

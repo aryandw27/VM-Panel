@@ -5,7 +5,9 @@ const { execSync } = require('child_process');
 const config = require('../lib/config');
 const { collections, getNextId } = require('../lib/db');
 const vmService = require('./vmService');
+const wingsGateway = require('./wingsGateway');
 const logger = require('../lib/logger');
+const { Client: SshClient } = require('ssh2');
 
 let lastCpuTimes = null;
 let lastNetSample = null;
@@ -126,7 +128,52 @@ function pushHistoryPoint(cpuPct, memPct, rxKbps, txKbps) {
   }
 }
 
+function offlineNodeStats(node, id) {
+  return {
+    id: Number(id),
+    name: (node && node.name) || `Node ${id}`,
+    hostname: (node && node.fqdn) || '',
+    status: 'offline',
+    location: 'Wings compute node',
+    ip: (node && (node.ssh_ip || node.fqdn)) || '',
+    fqdn: (node && node.fqdn) || '',
+    uptime_seconds: 0,
+    process_uptime: 0,
+    os: null,
+    cpu: { model: 'Wings node offline', cores_count: 0, percent: 0, per_core: [], load_avg: ['0.00', '0.00', '0.00'] },
+    memory: { total_mb: 0, used_mb: 0, free_mb: 0, percent: 0 },
+    swap: { total_mb: 0, used_mb: 0, free_mb: 0, percent: 0 },
+    disk: { total_bytes: 0, used_bytes: 0, free_bytes: 0, total_gb: '0', used_gb: '0', free_gb: '0', percent: 0 },
+    network: { rx_bytes: 0, tx_bytes: 0, rx_kbps: 0, tx_kbps: 0 },
+    hypervisor: { qemu_installed: false, qemu_version: 'Unknown', kvm_support: false, cloud_init: false },
+    vms: { total: 0, running: 0, stopped: 0, allocated_memory_mb: 0, allocated_cpus: 0, active_top_vms: [] },
+    history: { labels: [], cpu: [], memory: [], net_rx: [], net_tx: [] },
+    updated_at: new Date().toISOString(),
+  };
+}
+
 async function getNodeLiveStats(nodeId = 1) {
+  const requestedId = Number(nodeId) || 1;
+
+  // Nodes other than the panel host are fully described by their Wings daemon; never
+  // report the panel's own hardware as if it belonged to a remote node.
+  if (requestedId !== 1) {
+    const node = await collections.nodes.findOne({ id: requestedId }).catch(() => null);
+    if (!node) return offlineNodeStats(null, requestedId);
+    const remote = await wingsGateway.getNodeStats(requestedId);
+    if (!remote) return offlineNodeStats(node, requestedId);
+    return {
+      ...offlineNodeStats(node, requestedId),
+      ...remote,
+      id: requestedId,
+      name: node.name || `Node ${requestedId}`,
+      status: 'online',
+      fqdn: node.fqdn || remote.hostname || '',
+      ip: node.ssh_ip || node.fqdn || remote.ip || '',
+      updated_at: new Date().toISOString(),
+    };
+  }
+
   const cpus = os.cpus();
   const totalMem = os.totalmem();
   const freeMem = os.freemem();
@@ -394,6 +441,7 @@ async function listNodes(filterQuery = '') {
       servers_count: nodeVms.length,
       allocated_memory: allocatedMem,
       allocated_disk: allocatedDisk,
+      wings: wingsGateway.describe(n.id),
     };
 
     if (q) {
@@ -451,6 +499,7 @@ async function getNode(id) {
     allocated_memory: allocatedMem,
     allocated_disk: allocatedDisk,
     allocations,
+    wings: wingsGateway.describe(node.id),
   };
 }
 
@@ -481,6 +530,14 @@ async function createNode(data) {
     token: `vpanel_sec_${Math.random().toString(36).substring(2, 12)}`,
     server_limit: data.server_limit ? parseInt(data.server_limit, 10) : null,
     app_name: String(data.app_name || 'SiliconHost VM Panel').trim(),
+    wings_enabled: id === 1 ? 0 : 1,
+    ssh_ip: String(data.ssh_ip || data.fqdn || '').trim(),
+    ssh_user: String(data.ssh_user || 'root').trim(),
+    ssh_port: parseInt(data.ssh_port, 10) || 22,
+    ssh_password: data.ssh_password ? String(data.ssh_password) : '',
+    wings_online: 0,
+    wings_version: '',
+    wings_last_seen_at: null,
     sort_order: id,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -525,6 +582,10 @@ async function updateNode(id, data) {
   if (data.daemonListen !== undefined) updates.daemonListen = parseInt(data.daemonListen, 10);
   if (data.daemonSFTP !== undefined) updates.daemonSFTP = parseInt(data.daemonSFTP, 10);
   if (data.daemonBase !== undefined) updates.daemonBase = String(data.daemonBase).trim();
+  if (data.ssh_ip !== undefined) updates.ssh_ip = String(data.ssh_ip || '').trim();
+  if (data.ssh_user !== undefined) updates.ssh_user = String(data.ssh_user || '').trim();
+  if (data.ssh_port !== undefined) updates.ssh_port = parseInt(data.ssh_port, 10) || 22;
+  if (data.ssh_password !== undefined) updates.ssh_password = String(data.ssh_password || '');
 
   await collections.nodes.updateOne({ id: Number(id) }, { $set: updates });
   return getNode(id);
@@ -631,39 +692,169 @@ async function updateAllocationAlias(nodeId, allocId, alias) {
 
 
 
-function generateNodeConfigYaml(node) {
+function yamlString(value) {
+  return '"' + String(value === undefined || value === null ? '' : value)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\r?\n/g, ' ') + '"';
+}
+
+function generateNodeConfigYaml(node, panelUrl = config.panelUrl) {
   const n = node || {};
-  return `# Generated by SiliconHost VM Panel - Pterodactyl-Compatible Wings Daemon Config
-debug: false
-uuid: "${n.token_id || 'vpanel-node-1'}"
-token_id: "${n.token_id || 'vpanel-node-1'}"
-token: "${n.token || 'vpanel-node-secret'}"
-api:
-  host: "0.0.0.0"
-  port: ${n.daemonListen || 8080}
-  ssl:
-    enabled: ${n.scheme === 'https'}
-    cert: "/etc/letsencrypt/live/${n.fqdn || 'localhost'}/fullchain.pem"
-    key: "/etc/letsencrypt/live/${n.fqdn || 'localhost'}/privkey.pem"
-  upload_limit: 100
-system:
-  root_directory: "/var/lib/pterodactyl"
-  data: "${n.daemonBase || '/var/lib/pterodactyl/volumes'}"
-  archive_directory: "/var/lib/pterodactyl/archives"
-  backup_directory: "/var/lib/pterodactyl/backups"
-  sftp:
-    bind_port: ${n.daemonSFTP || 2022}
-allowed_mounts: []
-remote: "http://${n.fqdn || 'localhost'}:3001"
+  return `# SiliconHost Wings Daemon Configuration - generated by the panel
+panel:
+  url: ${yamlString(panelUrl)}
+  api_key: ${yamlString(n.token)}
+
+node:
+  id: ${Number(n.id) || 1}
+  name: ${yamlString(n.name)}
+
+vps:
+  ip: ${yamlString(n.ssh_ip || n.fqdn || '')}
+  ssh_user: ${yamlString(n.ssh_user || 'root')}
+  ssh_port: ${parseInt(n.ssh_port, 10) || 22}
+  ssh_password: ${yamlString(n.ssh_password || '')}
+
+storage:
+  vm_dir: "/var/lib/wings/vms"
+  images_dir: "/var/lib/wings/images"
+
+ssh:
+  port: 22
+  user: "root"
+  key_path: "/root/.ssh/id_rsa"
+
+logging:
+  level: "info"
+  file: "/var/log/wings/wings.log"
 `;
 }
 
-function generateDeployToken(node) {
-  const token = (node && node.token) || 'vpanel_deploy_token_live';
+function generateWingsConfigScript(node, panelUrl = config.panelUrl) {
+  const n = node || {};
+  const target = String(panelUrl || config.panelUrl).replace(/\/+$/, '');
+  const yaml = generateNodeConfigYaml(n, target);
+
+  return `#!/usr/bin/env bash
+# SiliconHost Wings configuration for node "${String(n.name || n.id || '').replace(/[\r\n]/g, ' ')}" (#${Number(n.id) || 1})
+# Paste this whole script on the Wings VPS as root.
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Please run this script as root: sudo bash"
+  exit 1
+fi
+
+WINGS_DIR="/opt/siliconhost-wings"
+PANEL_URL=${yamlString(target)}
+NODE_ID="${Number(n.id) || 1}"
+
+mkdir -p "$WINGS_DIR/config" /var/lib/wings/vms /var/lib/wings/images /var/log/wings
+
+cat > "$WINGS_DIR/config/wings.yml" <<'WINGS_YAML'
+${yaml}WINGS_YAML
+chmod 600 "$WINGS_DIR/config/wings.yml"
+
+cat > "$WINGS_DIR/config/.env" <<'WINGS_ENV'
+WINGS_CONFIG=/opt/siliconhost-wings/config/wings.yml
+NODE_ENV=production
+WINGS_ENV
+
+if systemctl list-unit-files 2>/dev/null | grep -q '^wings.service'; then
+  systemctl daemon-reload
+  systemctl enable wings >/dev/null 2>&1 || true
+  systemctl restart wings
+  sleep 3
+  if systemctl is-active --quiet wings; then
+    echo "[OK] Wings is running and connecting to $PANEL_URL"
+    echo "[OK] Node ID: $NODE_ID"
+  else
+    echo "[ERR] Wings did not start. Recent logs:"
+    journalctl -u wings -n 40 --no-pager || true
+    exit 1
+  fi
+else
+  echo "[OK] Configuration written to $WINGS_DIR/config/wings.yml"
+  echo "[INFO] Wings is not installed on this server yet."
+  echo "[INFO] Run the panel installer and choose 6 (Install Wings), then paste this script again."
+fi
+`;
+}
+
+function generateDeployToken(node, panelUrl = config.panelUrl) {
+  const token = (node && node.token) || '';
   const nodeId = (node && node.id) || 1;
-  const panelUrl = `http://${(node && node.fqdn) || 'localhost'}:3001`;
-  const cmd = `cd /etc/pterodactyl && sudo wings configure --panel-url ${panelUrl} --token ${token} --node ${nodeId}`;
-  return { token, node: nodeId, command: cmd };
+  const base = String(panelUrl || config.panelUrl).replace(/\/+$/, '');
+  const command = `curl -fsSL "${base}/api/wings/config/${nodeId}?token=${encodeURIComponent(token)}" | sudo bash`;
+  return { token, node: nodeId, command };
+}
+
+function runNodeCommand(node, command, { timeout = 25000 } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!node || !node.ssh_ip || !node.ssh_user) {
+      return reject(new Error('Node SSH access is not configured. Set the node IP, username and password in the panel first.'));
+    }
+
+    let settled = false;
+    const conn = new SshClient();
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { conn.end(); } catch (_) {}
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const timer = setTimeout(() => finish(new Error(`SSH command on node ${node.id} timed out after ${timeout} ms`)), timeout);
+    if (typeof timer.unref === 'function') timer.unref();
+
+    conn.on('ready', () => {
+      conn.exec(command, (error, stream) => {
+        if (error) return finish(error);
+        let stdout = '';
+        let stderr = '';
+        stream.on('data', (chunk) => { stdout += chunk.toString('utf8'); });
+        stream.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+        stream.on('close', (code) => finish(null, { code, stdout, stderr }));
+      });
+    });
+    conn.on('error', (error) => finish(error));
+    conn.on('close', () => finish(new Error('SSH connection closed before the command finished')));
+
+    const connectOptions = {
+      host: node.ssh_ip,
+      port: parseInt(node.ssh_port, 10) || 22,
+      username: node.ssh_user,
+      readyTimeout: 10000,
+      keepaliveInterval: 5000,
+    };
+    if (node.ssh_password) connectOptions.password = String(node.ssh_password);
+    else if (node.ssh_key_path && fs.existsSync(node.ssh_key_path)) connectOptions.privateKey = fs.readFileSync(node.ssh_key_path);
+    else return finish(new Error('Node SSH access needs a password or an accessible private key.'));
+
+    conn.connect(connectOptions);
+  });
+}
+
+async function controlNodeWings(nodeId, action) {
+  const node = await collections.nodes.findOne({ id: Number(nodeId) });
+  if (!node) throw new Error('Node not found');
+
+  const normalized = String(action || '').toLowerCase();
+  if (normalized === 'status') {
+    const res = await runNodeCommand(node, 'systemctl is-active wings || true');
+    return { active: res.stdout.trim(), node_id: node.id };
+  }
+  if (!['start', 'stop', 'restart'].includes(normalized)) {
+    throw new Error(`Unsupported Wings action "${action}"`);
+  }
+
+  const res = await runNodeCommand(node, `systemctl ${normalized} wings`);
+  if (res.code !== 0) {
+    throw new Error(`systemctl ${normalized} wings failed: ${(res.stderr || res.stdout || '').trim() || 'unknown error'}`);
+  }
+  return { action: normalized, node_id: node.id, output: res.stdout.trim() };
 }
 
 
@@ -682,13 +873,32 @@ async function massWingsControl(nodeIds, action) {
   const ids = Array.isArray(nodeIds) ? nodeIds.map(Number) : [];
   const results = {};
   for (const id of ids) {
-    results[id] = { success: true, action, message: `Dispatched ${action} to Wings Agent on node ${id}` };
+    try {
+      const result = await controlNodeWings(id, action);
+      results[id] = { success: true, action, ...result };
+    } catch (error) {
+      results[id] = { success: false, action, message: error.message };
+    }
   }
   return results;
 }
 
-function getNodeLogs(nodeId, source = 'wings') {
-  const logs = [];
+async function getNodeLogs(nodeId, source = 'wings') {
+  const node = await collections.nodes.findOne({ id: Number(nodeId) }).catch(() => null);
+
+  if (node && Number(node.id) !== 1 && node.ssh_ip && node.ssh_user) {
+    const command = source === 'qemu'
+      ? 'journalctl -u wings -n 150 --no-pager | grep -i -E "qemu|vm" || journalctl -u wings -n 150 --no-pager'
+      : (source === 'syslog' ? 'journalctl -n 150 --no-pager' : 'journalctl -u wings -n 150 --no-pager');
+    try {
+      const res = await runNodeCommand(node, command, { timeout: 20000 });
+      const text = (res.stdout || res.stderr || '').trim();
+      return text ? text.split(/\r?\n/).slice(-150) : ['[wings] No log output was returned by the node.'];
+    } catch (error) {
+      return [`[wings] Could not read logs from the node over SSH: ${error.message}`];
+    }
+  }
+
   try {
     let logPath = '';
     if (source === 'wings') {
@@ -701,18 +911,14 @@ function getNodeLogs(nodeId, source = 'wings') {
 
     if (logPath && fs.existsSync(logPath)) {
       const content = fs.readFileSync(logPath, 'utf8');
-      const lines = content.trim().split('\n').slice(-100);
-      return lines;
+      return content.trim().split('\n').slice(-100);
     }
   } catch (_) {}
 
-  
   const now = new Date().toISOString();
   return [
-    `[${now}] [INFO] [wings-agent] Node daemon connection online on port 8080`,
-    `[${now}] [INFO] [hypervisor] QEMU / KVM virtualization subsystem healthy`,
-    `[${now}] [INFO] [allocations] Network ports ready on 127.0.0.1`,
-    `[${now}] [INFO] [health-check] Host resources polled: CPU load optimal, RAM available`,
+    `[${now}] [INFO] [wings-agent] No local Wings process is installed on the panel host`,
+    `[${now}] [INFO] [hypervisor] Enable Wings for remote nodes, or manage local VMs directly on node 1`,
   ];
 }
 
@@ -731,8 +937,11 @@ module.exports = {
   deleteAllocations,
   updateAllocationAlias,
   generateNodeConfigYaml,
+  generateWingsConfigScript,
   generateDeployToken,
+  controlNodeWings,
   massUpdateAppName,
   massWingsControl,
   getNodeLogs,
+  runNodeCommand,
 };

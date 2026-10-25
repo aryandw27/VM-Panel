@@ -23,7 +23,7 @@ function connect(vm, { readyTimeout = 10000 } = {}) {
       if (!settled) { settled = true; reject(err); }
     });
     conn.connect({
-      host: '127.0.0.1',
+      host: vm.node_host || '127.0.0.1',
       port: vm.ssh_port,
       username: vm.username,
       password: vm.password,

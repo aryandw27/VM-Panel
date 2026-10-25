@@ -10,6 +10,11 @@
   const stats = (typeof nodeStats !== 'undefined' && nodeStats) || {};
   const serverList = (n.servers) || [];
   const allocList = (n.allocations) || [];
+  const wings = (n && n.wings) || { online: false };
+  const isLocalNode = Number(n.id) === 1;
+  const nodeOnline = isLocalNode || wings.online;
+  const configScriptText = (typeof configScript !== 'undefined' && configScript) || '';
+  const initialDeployCommand = (typeof deployCommand !== 'undefined' && deployCommand) || '';
 
   const memTotal = n.memory || 16384;
   const memAlloc = n.allocated_memory || 0;
@@ -35,7 +40,11 @@
     <div>
       <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.4px;margin:0;display:flex;align-items:center;gap:10px">
         <%= n.name %>
-        <span class="pill pill-green font-bold" style="font-size:11px;padding:2px 8px">● Online</span>
+        <% if (nodeOnline) { %>
+          <span class="pill pill-green font-bold" style="font-size:11px;padding:2px 8px">● <%= isLocalNode ? 'Local Host' : 'Wings Online' %></span>
+        <% } else { %>
+          <span class="pill pill-red font-bold" style="font-size:11px;padding:2px 8px">● Wings Offline</span>
+        <% } %>
         <% if (n.public) { %>
           <span class="pill pill-blue font-bold" style="font-size:10.5px">Public</span>
         <% } else { %>
@@ -106,7 +115,13 @@
             <tr>
               <td class="muted" style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)">Daemon Version</td>
               <td style="padding:10px 0;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06)">
-                <code class="pill pill-green font-bold">v1.11.8 (Latest)</code>
+                <% if (isLocalNode) { %>
+                  <code class="pill pill-blue font-bold">panel host</code>
+                <% } else if (wings.online) { %>
+                  <code class="pill pill-green font-bold">v<%= wings.version || '1.0.0' %> connected</code>
+                <% } else { %>
+                  <code class="pill pill-red font-bold">Wings not connected</code>
+                <% } %>
               </td>
             </tr>
             <tr>
@@ -128,9 +143,15 @@
               </td>
             </tr>
             <tr>
+              <td class="muted" style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)">Node SSH Access</td>
+              <td style="padding:10px 0;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06)">
+                <code class="mono" style="font-size:11.5px"><%= n.ssh_user || 'root' %>@<%= n.ssh_ip || n.fqdn || 'not set' %>:<%= n.ssh_port || 22 %></code>
+              </td>
+            </tr>
+            <tr>
               <td class="muted" style="padding:10px 0">Node Storage Root</td>
               <td style="padding:10px 0;text-align:right">
-                <code class="mono" style="font-size:11.5px"><%= n.daemonBase || '/var/lib/pterodactyl/volumes' %></code>
+                <code class="mono" style="font-size:11.5px"><%= n.daemonBase || '/var/lib/wings/vms' %></code>
               </td>
             </tr>
           </tbody>
@@ -329,6 +350,28 @@
               </div>
             </div>
 
+            <div style="border-top:1px solid rgba(255,255,255,0.08);margin:6px 0 14px"></div>
+            <div class="card-title mb-3" style="font-size:14px">Wings VPS SSH Access</div>
+            <p class="muted text-sm mb-3" style="font-size:11.5px">Used for the Wings service controls and node logs. The node IP is used for VM console and SSH access too.</p>
+            <div class="grid grid-2" style="gap:12px">
+              <div class="form-group mb-3">
+                <label for="sSshIp">VPS IP / Hostname</label>
+                <input type="text" id="sSshIp" class="form-control" value="<%= n.ssh_ip || '' %>" placeholder="203.0.113.20"/>
+              </div>
+              <div class="form-group mb-3">
+                <label for="sSshUser">SSH Username</label>
+                <input type="text" id="sSshUser" class="form-control" value="<%= n.ssh_user || 'root' %>"/>
+              </div>
+              <div class="form-group mb-3">
+                <label for="sSshPort">SSH Port</label>
+                <input type="number" id="sSshPort" class="form-control" value="<%= n.ssh_port || 22 %>"/>
+              </div>
+              <div class="form-group mb-3">
+                <label for="sSshPassword">SSH Password</label>
+                <input type="password" id="sSshPassword" class="form-control" value="<%= n.ssh_password || '' %>" placeholder="Leave empty to keep current"/>
+              </div>
+            </div>
+
             <button type="submit" class="btn btn-primary mt-2" style="width:100%">Save Node Settings</button>
           </div>
 
@@ -353,33 +396,14 @@
         <div class="flex-between mb-3">
           <div class="card-title" style="margin:0;display:flex;align-items:center;gap:8px">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Configuration File (config.yml)
+            Wings Configuration Script
           </div>
-          <button type="button" class="btn btn-sm" onclick="copyYamlConfig()">Copy Config</button>
+          <button type="button" class="btn btn-sm" onclick="copyYamlConfig()">Copy Script</button>
         </div>
         <p class="muted text-sm mb-3">
-          Place this file in your daemon root directory (usually <code>/etc/pterodactyl/config.yml</code>).
+          Paste this whole script on the Wings VPS as root. It writes <code>/opt/siliconhost-wings/config/wings.yml</code> and restarts Wings so the node connects to this panel.
         </p>
-        <pre id="yamlCode" style="background:#0e1117;border:1px solid var(--border);border-radius:8px;padding:14px;color:#e2e8f0;font-size:12px;overflow-x:auto;user-select:all;max-height:360px">debug: false
-uuid: "<%= n.token_id || 'vpanel-node-1' %>"
-token_id: "<%= n.token_id || 'vpanel-node-1' %>"
-token: "<%= n.token || 'vpanel-node-secret' %>"
-api:
-  host: "0.0.0.0"
-  port: <%= n.daemonListen || 8080 %>
-  ssl:
-    enabled: <%= n.scheme === 'https' %>
-    cert: "/etc/letsencrypt/live/<%= n.fqdn %>/fullchain.pem"
-    key: "/etc/letsencrypt/live/<%= n.fqdn %>/privkey.pem"
-  upload_limit: 100
-system:
-  root_directory: "/var/lib/pterodactyl"
-  data: "<%= n.daemonBase || '/var/lib/pterodactyl/volumes' %>"
-  archive_directory: "/var/lib/pterodactyl/archives"
-  backup_directory: "/var/lib/pterodactyl/backups"
-  sftp:
-    bind_port: <%= n.daemonSFTP || 2022 %>
-remote: "<%= n.scheme %>://<%= n.fqdn %>:3001"</pre>
+        <pre id="yamlCode" style="background:#0e1117;border:1px solid var(--border);border-radius:8px;padding:14px;color:#e2e8f0;font-size:12px;overflow-x:auto;user-select:all;max-height:420px;white-space:pre"><%= configScriptText %></pre>
       </div>
 
       
@@ -389,15 +413,15 @@ remote: "<%= n.scheme %>://<%= n.fqdn %>:3001"</pre>
           Auto-Deploy Command
         </div>
         <p class="muted text-sm mb-4">
-          Click below to generate a secure auto-configuration deployment command for Wings.
+          Run this one-liner on the Wings VPS with root privileges to fetch and apply the script above.
         </p>
         <button type="button" class="btn btn-primary" onclick="generateAutoDeployToken()" style="width:100%;margin-bottom:16px">
-          Generate Deploy Token
+          Refresh Deploy Command
         </button>
 
-        <div id="deployCmdBox" style="display:none;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:16px">
+        <div id="deployCmdBox" style="display:<%= initialDeployCommand ? 'block' : 'none' %>;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:16px">
           <div style="font-weight:700;color:#10b981;font-size:13px;margin-bottom:6px">Run this command on your node host:</div>
-          <code id="deployCmdText" style="display:block;background:#000;padding:10px 12px;border-radius:6px;font-size:11.5px;color:#38bdf8;user-select:all;word-break:break-all"></code>
+          <code id="deployCmdText" style="display:block;background:#000;padding:10px 12px;border-radius:6px;font-size:11.5px;color:#38bdf8;user-select:all;word-break:break-all"><%= initialDeployCommand %></code>
           <button type="button" class="btn btn-sm btn-green mt-3" onclick="copyDeployCmd()" style="padding:4px 12px">Copy Command</button>
         </div>
       </div>
@@ -708,6 +732,10 @@ async function saveNodeSettings(e) {
     disk_overallocate: parseInt(document.getElementById('sDiskOver').value, 10),
     daemonListen: parseInt(document.getElementById('sDaemonListen').value, 10),
     daemonSFTP: parseInt(document.getElementById('sDaemonSFTP').value, 10),
+    ssh_ip: document.getElementById('sSshIp').value.trim(),
+    ssh_user: document.getElementById('sSshUser').value.trim(),
+    ssh_port: parseInt(document.getElementById('sSshPort').value, 10) || 22,
+    ssh_password: document.getElementById('sSshPassword').value,
   };
 
   try {

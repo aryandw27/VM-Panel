@@ -74,7 +74,7 @@ function attachVncProxy(server) {
       const pending = [];
       let closed = false;
 
-      const tcp = net.connect({ host: '127.0.0.1', port: ctx.vm.vnc_port });
+      const tcp = net.connect({ host: ctx.vm.node_host || '127.0.0.1', port: ctx.vm.vnc_port });
 
       const cleanup = (err) => {
         if (closed) return;

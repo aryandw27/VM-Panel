@@ -1020,6 +1020,85 @@ do_uninstall() {
 
 
 
+wings_scripts_dir() {
+  if [ -d "$APP_DIR/Wings/scripts" ]; then
+    echo "$APP_DIR/Wings/scripts"
+  elif [ -d "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Wings/scripts" ]; then
+    echo "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Wings/scripts"
+  fi
+}
+
+do_install_wings() {
+  local scripts_dir
+  scripts_dir="$(wings_scripts_dir)"
+
+  safe_clear
+  printf "${CYAN}${BOLD}"
+  echo "================================================================="
+  echo "          🐾 Install SiliconHost Wings (compute node VPS)          "
+  echo "================================================================="
+  printf "${NC}\n"
+
+  if [ -z "$scripts_dir" ]; then
+    log_err "Wings installer not found. Run this panel installer from the repository root so the Wings/ folder is available."
+    return 1
+  fi
+
+  echo "This will install the Wings daemon on this VPS and connect it to a panel node."
+  echo "You will need the panel URL, the node ID and the node token from the panel."
+  echo ""
+
+  bash "$scripts_dir/install-wings.sh" || {
+    log_err "Wings installation failed. See the messages above."
+    return 1
+  }
+}
+
+do_update_wings() {
+  local scripts_dir
+  scripts_dir="$(wings_scripts_dir)"
+
+  safe_clear
+  printf "${CYAN}${BOLD}"
+  echo "================================================================="
+  echo "              🔄 Update SiliconHost Wings                        "
+  echo "================================================================="
+  printf "${NC}\n"
+
+  if [ -z "$scripts_dir" ]; then
+    log_err "Wings updater not found. Run this installer from the repository root."
+    return 1
+  fi
+
+  bash "$scripts_dir/update-wings.sh" --source "$(cd "$scripts_dir/.." && pwd)" || {
+    log_err "Wings update failed. See the messages above."
+    return 1
+  }
+}
+
+do_uninstall_wings() {
+  local scripts_dir
+  scripts_dir="$(wings_scripts_dir)"
+
+  safe_clear
+  printf "${RED}${BOLD}"
+  echo "================================================================="
+  echo "              🗑️  Uninstall SiliconHost Wings                    "
+  echo "================================================================="
+  printf "${NC}\n"
+
+  if [ -z "$scripts_dir" ]; then
+    log_err "Wings uninstaller not found."
+    return 1
+  fi
+
+  bash "$scripts_dir/uninstall-wings.sh" || {
+    log_err "Wings uninstall failed. See the messages above."
+    return 1
+  }
+}
+
+
 
 show_menu() {
   while true; do
@@ -1031,15 +1110,18 @@ show_menu() {
     echo "================================================================="
     printf "${NC}"
     echo ""
-    echo "  [1] 🚀 1. Install (Full automated install for Debian/Ubuntu)"
+    echo "  [1] 🚀 1. Install Panel (Full automated install for Debian/Ubuntu)"
     echo "  [2] 👤 2. User Create Admin (Create or reset admin account)"
-    echo "  [3] 🔄 3. Update (Pull updates, rebuild & zero-downtime reload)"
+    echo "  [3] 🔄 3. Update Panel (Pull updates, rebuild & zero-downtime reload)"
     echo "  [4] ⚙️  4. PM2 Management (Restart, logs, boot startup)"
-    echo "  [5] 🗑️  5. Uninstall (Safe uninstall wizard)"
+    echo "  [5] 🗑️  5. Uninstall Panel (Safe uninstall wizard)"
+    echo "  [6] 🐾 6. Install Wings (Install VM compute node on this server)"
+    echo "  [7] 🔄 7. Update Wings (Update compute node)"
+    echo "  [8] 🗑️  8. Uninstall Wings (Remove compute node)"
     echo "  [0] 🚪 0. Exit"
     echo ""
     printf "${CYAN}=================================================================${NC}\n"
-    read -r -p "Enter choice [0-5]: " CHOICE
+    read -r -p "Enter choice [0-8]: " CHOICE
 
     case "$CHOICE" in
       1)
@@ -1061,12 +1143,24 @@ show_menu() {
         do_uninstall
         read -r -p "Press Enter to return to menu..." _
         ;;
+      6)
+        do_install_wings
+        read -r -p "Press Enter to return to menu..." _
+        ;;
+      7)
+        do_update_wings
+        read -r -p "Press Enter to return to menu..." _
+        ;;
+      8)
+        do_uninstall_wings
+        read -r -p "Press Enter to return to menu..." _
+        ;;
       0)
         log_info "Exiting SiliconHost VM Panel Installer. Goodbye!"
         exit 0
         ;;
       *)
-        log_warn "Invalid option '$CHOICE'. Please choose 1, 2, 3, 4, 5, or 0."
+        log_warn "Invalid option '$CHOICE'. Please choose 1-8, or 0."
         sleep 1.2
         ;;
     esac
@@ -1104,6 +1198,15 @@ while [ $# -gt 0 ]; do
       ;;
     5|--uninstall|uninstall)
       ACTION="uninstall"
+      ;;
+    6|--install-wings|install-wings)
+      ACTION="install_wings"
+      ;;
+    7|--update-wings|update-wings)
+      ACTION="update_wings"
+      ;;
+    8|--uninstall-wings|uninstall-wings)
+      ACTION="uninstall_wings"
       ;;
     --menu)
       ACTION="menu"
@@ -1152,6 +1255,9 @@ while [ $# -gt 0 ]; do
       echo "  3, update, --update             Pull updates and rebuild"
       echo "  4, pm2, --pm2                   PM2 cluster management menu"
       echo "  5, uninstall, --uninstall       Uninstall SiliconHost VM Panel"
+      echo "  6, --install-wings              Install Wings compute node on this VPS"
+      echo "  7, --update-wings               Update the Wings compute node"
+      echo "  8, --uninstall-wings            Uninstall the Wings compute node"
       echo "  --menu                           Open management menu"
       echo ""
       echo "Options:"
@@ -1178,6 +1284,9 @@ if [ -n "$ACTION" ]; then
     update)      do_update ;;
     pm2)         do_pm2_menu ;;
     uninstall)   do_uninstall ;;
+    install_wings)   do_install_wings ;;
+    update_wings)    do_update_wings ;;
+    uninstall_wings) do_uninstall_wings ;;
     menu)        show_menu ;;
   esac
 else

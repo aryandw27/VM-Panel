@@ -1,0 +1,27 @@
+{
+  "name": "siliconhost-wings",
+  "version": "1.0.0",
+  "description": "SiliconHost Wings Daemon - Distributed VM execution node",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "install:wings": "bash scripts/install-wings.sh",
+    "uninstall:wings": "bash scripts/uninstall-wings.sh",
+    "update:wings": "bash scripts/update-wings.sh"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "axios": "^1.6.7",
+    "uuid": "^9.0.1",
+    "dotenv": "^16.4.5",
+    "yaml": "^2.4.0",
+    "tar": "^6.2.0",
+    "archiver": "^7.0.1",
+    "systeminformation": "^5.22.7"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT"
+}

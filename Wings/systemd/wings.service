@@ -1,0 +1,25 @@
+[Unit]
+Description=SiliconHost Wings Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/siliconhost-wings
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wings
+
+Environment=NODE_ENV=production
+Environment=WINGS_CONFIG=/opt/siliconhost-wings/config/wings.yml
+Environment=WINGS_LOG_FILE=/var/log/wings/wings.log
+
+LimitNOFILE=65536
+LimitNPROC=65536
+
+[Install]
+WantedBy=multi-user.target

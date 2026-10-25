@@ -1,0 +1,33 @@
+# SiliconHost Wings Daemon Configuration
+# The panel generates this file for you in Nodes -> <node> -> Configuration.
+# Install with: sudo bash install-wings.sh --panel-url ... --node-id ... --token ...
+
+panel:
+  url: "http://203.0.113.10:3001"
+  # Node token shown in the panel node configuration tab.
+  api_key: "vpanel_sec_xxxxxxxxxx"
+
+node:
+  id: 2
+  name: "Node 2 - Frankfurt"
+
+# SSH access the panel uses to start/stop Wings and read its logs.
+vps:
+  ip: "203.0.113.20"
+  ssh_user: "root"
+  ssh_port: 22
+  ssh_password: ""
+
+storage:
+  vm_dir: "/var/lib/wings/vms"
+  images_dir: "/var/lib/wings/images"
+
+# Guest VM SSH defaults used when the panel does not override them.
+ssh:
+  port: 22
+  user: "root"
+  key_path: "/root/.ssh/id_rsa"
+
+logging:
+  level: "info"
+  file: "/var/log/wings/wings.log"
