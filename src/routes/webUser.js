@@ -93,6 +93,20 @@ router.get('/apps', async (req, res, next) => {
   }
 });
 
+router.get('/apps', async (req, res, next) => {
+  try {
+    const rows = await collections.vms.find({ owner_id: Number(req.user.id) }).sort({ name: 1 }).toArray();
+    render(res, 'apps', {
+      apps: appStoreService.catalog,
+      vms: rows.map(vmService.serializeVm),
+      maxCustomScriptBytes: appStoreService.MAX_CUSTOM_SCRIPT_BYTES,
+      configDefs: appStoreService.configDefs(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/apps/api/install', appInstallLimit, express.json({ limit: '24kb' }), async (req, res) => {
   const origin = req.get('origin');
   if (origin) {
@@ -118,13 +132,15 @@ router.post('/apps/api/install', appInstallLimit, express.json({ limit: '24kb' }
     if (!vm || Number(vm.owner_id) !== Number(req.user.id)) {
       return res.status(404).json({ ok: false, error: 'VM not found or not owned by this account.' });
     }
-    const result = await appStoreService.install({
+    const { jobId, snapshot } = await appStoreService.startInstall({
       vm,
       user: req.user,
       appId: req.body.appId,
+      config: req.body.config,
       customScript: req.body.customScript,
+      cloudflareToken: req.body.cloudflareToken,
     });
-    return res.json({ ok: true, result });
+    return res.json({ ok: true, jobId, job: snapshot });
   } catch (error) {
     const status = error instanceof TypeError ? 400
       : /not running|already forwarded|No free public port|Start the VM/i.test(error.message) ? 409
@@ -135,6 +151,108 @@ router.post('/apps/api/install', appInstallLimit, express.json({ limit: '24kb' }
     return res.status(status).json({
       ok: false,
       error: status === 500 ? 'The installer failed. Check the VM SSH connection and try again.' : error.message,
+    });
+  }
+});
+
+router.get('/apps/api/installs/:jobId', async (req, res) => {
+  try {
+    const job = await appStoreService.getOwnedInstallJob(req.params.jobId, req.user);
+    if (!job) {
+      return res.status(404).json({ ok: false, error: 'Install job not found.' });
+    }
+    const since = Number.parseInt(req.query.since, 10);
+    const view = appStoreService.serializeInstallJob(job, {
+      since: Number.isSafeInteger(since) && since > 0 ? since : 0,
+    });
+    return res.json({ ok: true, job: view });
+  } catch (error) {
+    require('../lib/logger').error(`[app-store] Could not load install job: ${error.message}`);
+    return res.status(500).json({ ok: false, error: 'Could not load the install job.' });
+  }
+});
+
+const installActionLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 30, key: userKey, message: 'Too many install actions. Wait a moment before trying again.' });
+
+async function loadOwnedInstallJob(req, res) {
+  const job = await appStoreService.getOwnedInstallJob(req.params.jobId, req.user);
+  if (!job) {
+    res.status(404).json({ ok: false, error: 'Install job not found.' });
+    return null;
+  }
+  const vm = await vmService.getVm(job.vm_id);
+  if (!vm) {
+    res.status(404).json({ ok: false, error: 'VM not found.' });
+    return null;
+  }
+  const privileged = req.user.role === 'admin' || req.user.root_admin;
+  const allowed = privileged
+    || Number(vm.owner_id) === Number(req.user.id)
+    || Number(job.user_id) === Number(req.user.id);
+  if (!allowed) {
+    res.status(403).json({ ok: false, error: 'Only the VM owner can manage this installation.' });
+    return null;
+  }
+  return { job, vm };
+}
+
+router.post('/apps/api/installs/:jobId/port', installActionLimit, express.json({ limit: '4kb' }), async (req, res) => {
+  try {
+    const loaded = await loadOwnedInstallJob(req, res);
+    if (!loaded) return;
+    await appStoreService.renewInstallPort({
+      job: loaded.job,
+      vm: loaded.vm,
+      user: req.user,
+      preferredPort: req.body?.preferredHostPort,
+    });
+    const fresh = await appStoreService.getOwnedInstallJob(req.params.jobId, req.user);
+    return res.json({ ok: true, job: appStoreService.serializeInstallJob(fresh || loaded.job, { includeLogs: false }) });
+  } catch (error) {
+    const status = error instanceof TypeError ? 400
+      : /not running|No free public port|Start the VM|already forwarded/i.test(error.message) ? 409 : 500;
+    if (status === 500) {
+      require('../lib/logger').error(`[app-store] Port renewal failed for user ${req.user.id}: ${error.message}`);
+    }
+    return res.status(status).json({
+      ok: false,
+      error: status === 500 ? 'The port mapping could not be changed. Try again.' : error.message,
+    });
+  }
+});
+
+router.post('/apps/api/installs/:jobId/cloudflare', appInstallLimit, express.json({ limit: '8kb' }), async (req, res) => {
+  const origin = req.get('origin');
+  if (origin) {
+    try {
+      if (new URL(origin).host !== req.get('host')) {
+        return res.status(403).json({ ok: false, error: 'Cross-origin app installations are not allowed.' });
+      }
+    } catch (_) {
+      return res.status(403).json({ ok: false, error: 'Invalid request origin.' });
+    }
+  }
+  try {
+    const loaded = await loadOwnedInstallJob(req, res);
+    if (!loaded) return;
+    if (loaded.vm.status !== 'running') {
+      return res.status(409).json({ ok: false, error: 'Start the VM and wait for SSH access before installing a tunnel.' });
+    }
+    const snapshot = await appStoreService.startTunnelInstall({
+      vm: loaded.vm,
+      user: req.user,
+      cloudflareToken: req.body?.cloudflareToken,
+    });
+    return res.json({ ok: true, job: snapshot });
+  } catch (error) {
+    const status = error instanceof TypeError ? 400
+      : /not running|No free public port|Start the VM/i.test(error.message) ? 409 : 500;
+    if (status === 500) {
+      require('../lib/logger').error(`[app-store] Tunnel install failed for user ${req.user.id}: ${error.message}`);
+    }
+    return res.status(status).json({
+      ok: false,
+      error: status === 500 ? 'The tunnel installation could not be started. Try again.' : error.message,
     });
   }
 });
@@ -151,6 +269,15 @@ router.get('/servers/:id', loadVm, async (req, res, next) => {
       activeIncident = (mine.incidents || []).find((i) => i.resource_type === 'vm' && Number(i.resource_id) === Number(req.vm.id)) || null;
     } catch (_) {}
     render(res, 'server/overview', { vm: req.vm, backups, allUsers, activeIncident });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/servers/:id/installed-apps', loadVm, async (req, res, next) => {
+  try {
+    const installs = await appStoreService.listInstallsForVm(req.vm, req.user);
+    render(res, 'server/installed-apps', { vm: req.vm, installs });
   } catch (err) {
     next(err);
   }

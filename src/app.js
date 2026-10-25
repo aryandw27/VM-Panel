@@ -53,7 +53,7 @@ function createWebApp() {
     const configuredMode = settings.get('arix.mode', settings.get('panel.theme', 'dark')) === 'light' ? 'light' : 'dark';
     const activeTheme = selectedTheme && selectedTheme !== 'default'
       ? getTheme(selectedTheme)
-      : getTheme(`${configuredMode}-neumorphism`);
+      : getTheme(configuredMode === 'light' ? 'light-neumorphism' : 'amoled-black');
     res.locals.panelThemeId = activeTheme.id;
     res.locals.panelThemeMode = activeTheme.mode;
     res.locals.token = req.cookies?.token || (req.user ? authService.generateToken(req.user) : '');

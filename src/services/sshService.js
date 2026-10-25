@@ -34,7 +34,7 @@ function connect(vm, { readyTimeout = 10000 } = {}) {
   });
 }
 
-function exec(conn, cmd, { timeout = 30000, maxOutputBytes = Infinity } = {}) {
+function exec(conn, cmd, { timeout = 30000, maxOutputBytes = Infinity, onOutput } = {}) {
   return new Promise((resolve, reject) => {
     let settled = false;
     let streamRef = null;
@@ -64,8 +64,16 @@ function exec(conn, cmd, { timeout = 30000, maxOutputBytes = Infinity } = {}) {
         capturedBytes += Buffer.byteLength(text);
         return current + (remaining > 0 ? Buffer.from(text).subarray(0, remaining).toString() : '');
       };
-      stream.on('data', (d) => { out = capture(out, d); });
-      stream.stderr.on('data', (d) => { errOut = capture(errOut, d); });
+      stream.on('data', (d) => {
+        const text = capture(out, d);
+        if (typeof onOutput === 'function') onOutput(d.toString(), false);
+        out = text;
+      });
+      stream.stderr.on('data', (d) => {
+        const text = capture(errOut, d);
+        if (typeof onOutput === 'function') onOutput(d.toString(), true);
+        errOut = text;
+      });
       stream.on('close', (code) => {
         if (settled) return;
         settled = true;

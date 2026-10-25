@@ -16,20 +16,33 @@ const catalog = [
     id: 'wordpress',
     name: 'WordPress',
     category: 'CMS',
-    description: 'A persistent WordPress and MariaDB Compose stack, ready for its browser-based setup wizard.',
+    description: 'WordPress with MariaDB as a persistent Compose stack, plus a one-click admin setup via wp-cli. Enter the admin details during install or rely on generated values.',
     icon: 'file-text',
     guestPort: 8080,
     exposure: 'Public HTTP after the VM restarts to apply its saved port mapping.',
+    resultNote: (cfg) => `WordPress admin user "${cfg?.adminName || 'admin'}" — password ${(cfg?.adminPass) ? 'as chosen in the install form' : 'saved in /opt/siliconhost-apps/wordpress/.env (WP_ADMIN_PASS)'}. If the site URL shows localhost after install, align it from the VM console with: cd /opt/siliconhost-apps/wordpress && docker compose run --rm wp wp option update home http://<your-panel-host>:<hostPort> && docker compose run --rm wp wp option update siteurl http://<your-panel-host>:<hostPort>`,
+    config: [
+      { key: 'siteTitle', label: 'Site title', type: 'text', default: 'SiliconHost', pattern: '^[A-Za-z0-9 .,:!&()_-]{1,60}$' },
+      { key: 'adminName', label: 'Admin username', type: 'text', default: 'admin', pattern: '^[a-zA-Z0-9_.-]{1,32}$', required: true },
+      { key: 'adminEmail', label: 'Admin email', type: 'email' },
+      { key: 'adminPass', label: 'Admin password', type: 'password', secret: true, autoGen: 12, help: 'Leave empty to auto-generate a strong password (it is shown in the installation summary).' },
+    ],
   },
   {
     id: 'woocommerce',
     name: 'WooCommerce',
     category: 'CMS',
-    description: 'WordPress with the WooCommerce storefront plugin pre-installed and activated via the official wp-cli image.',
+    description: 'WordPress with the WooCommerce storefront plugin pre-installed and activated via wp-cli. Configure the admin account during install or use generated values.',
     icon: 'shopping-cart',
     guestPort: 8081,
     exposure: 'Public HTTP after the VM restarts to apply its saved port mapping.',
-    resultNote: 'WordPress is set up with admin user "admin" and the password saved in /opt/siliconhost-apps/woocommerce/.env (WP_ADMIN_PASS). WooCommerce is activated. The site URL is http://localhost:8081 — after restarting the VM, open the mapped URL, then align the address from the VM console with: cd /opt/siliconhost-apps/woocommerce && docker compose run --rm wp wp option update home http://<your-panel-host>:<hostPort> && docker compose run --rm wp wp option update siteurl http://<your-panel-host>:<hostPort>',
+    resultNote: (cfg) => `WordPress is set up with admin user "${cfg?.adminName || 'admin'}" and the password ${(cfg?.adminPass) ? 'you chose in the install form' : 'saved in /opt/siliconhost-apps/woocommerce/.env (WP_ADMIN_PASS)'}. WooCommerce is activated. The site URL is http://localhost:8081 — after restarting the VM, open the mapped URL, then align the address from the VM console with: cd /opt/siliconhost-apps/woocommerce && docker compose run --rm wp wp option update home http://<your-panel-host>:<hostPort> && docker compose run --rm wp wp option update siteurl http://<your-panel-host>:<hostPort>`,
+    config: [
+      { key: 'siteTitle', label: 'Site title', type: 'text', default: 'SiliconHost', pattern: '^[A-Za-z0-9 .,:!&()_-]{1,60}$' },
+      { key: 'adminName', label: 'Admin username', type: 'text', default: 'admin', pattern: '^[a-zA-Z0-9_.-]{1,32}$', required: true },
+      { key: 'adminEmail', label: 'Admin email', type: 'email' },
+      { key: 'adminPass', label: 'Admin password', type: 'password', secret: true, autoGen: 12, help: 'Leave empty to auto-generate a strong password (it is shown in the installation summary).' },
+    ],
   },
   {
     id: 'drupal',
@@ -84,6 +97,11 @@ const catalog = [
     exposure: 'Public HTTPS on guest port 8443. Expect a browser warning for the self-signed certificate.',
     resultNote: 'CloudPanel setup wizard opens at the mapped URL. Install this on the VM alone: CloudPanel uses guest port 8443 and conflicts with the Plesk one-click on the same VM.',
     timeoutMs: LONG_INSTALLER_TIMEOUT,
+    config: [
+      { key: 'userName', label: 'CloudPanel admin username', type: 'text', default: 'admin', pattern: '^[a-zA-Z0-9_.-]{1,32}$', required: true },
+      { key: 'userEmail', label: 'Admin email', type: 'email', required: true },
+      { key: 'userPass', label: 'Admin password', type: 'password', secret: true, autoGen: 12, help: 'Leave empty to auto-generate a strong password for the panel admin (it is shown in the installation summary).' },
+    ],
   },
   {
     id: 'webmin',
@@ -186,8 +204,11 @@ const catalog = [
     icon: 'git-branch',
     guestPort: 80,
     exposure: 'Public HTTP on guest port 80. Not installable next to LAMP/LEMP on the same VM (same port).',
-    resultNote: 'GitLab opens at http://<your-panel-host>:<hostPort> after the restart. Sign in as root with the one-time password from the VM console: cat /etc/gitlab/initial_root_password (valid for 24 hours — change it after the first login).',
+    resultNote: 'GitLab opens at http://<your-panel-host>:<hostPort> after the restart. Sign in as root with the one-time password from the VM console: cat /etc/gitlab/initial_root_password (valid for 24 hours — change it after the first login). If you set an initial root password in the install form, use that value instead.',
     timeoutMs: LONG_INSTALLER_TIMEOUT,
+    config: [
+      { key: 'rootPass', label: 'Initial root password', type: 'password', secret: true, min: 8, help: 'Optional. Sets the initial root password (8+ characters). Leave empty to use the one-time password file that GitLab generates.' },
+    ],
   },
   {
     id: 'k3s',
@@ -285,8 +306,12 @@ const catalog = [
     guestPort: 943,
     scheme: 'https',
     exposure: 'Public HTTPS on guest port 943 (Admin UI). The client data channel on guest port 443 needs an additional manual mapping.',
-    resultNote: 'Admin UI after the restart: https://<your-panel-host>:<hostPort>/admin. Sign-in user "openvpn" and a generated password are saved at /opt/siliconhost-apps/openvpn-as/access.txt (read it over SSH). VPN client connections additionally need a manual mapping from host side to guest port 443. Two client connections are free; beyond that apply an OpenVPN Access Server license (BYOL).',
+    resultNote: 'Admin UI after the restart: https://<your-panel-host>:<hostPort>/admin. Sign-in credentials are saved at /opt/siliconhost-apps/openvpn-as/access.txt (read it over SSH). VPN client connections additionally need a manual mapping from host side to guest port 443. Two client connections are free; beyond that apply an OpenVPN Access Server license (BYOL).',
     timeoutMs: LONG_INSTALLER_TIMEOUT,
+    config: [
+      { key: 'adminUser', label: 'Admin username', type: 'text', default: 'openvpn', pattern: '^[a-zA-Z0-9_.-]{1,32}$', required: true },
+      { key: 'adminPass', label: 'Admin password', type: 'password', secret: true, autoGen: 12, help: 'Leave empty to auto-generate a strong password (saved to access.txt and shown in the installation summary).' },
+    ],
   },
 
   // ── Media & communication ────────────────────────────────────────────────
@@ -335,6 +360,10 @@ const catalog = [
     exposure: 'Public on guest port 25565 after the VM restarts. First start downloads the server files and can take several minutes.',
     resultNote: 'Join with a Minecraft Java client: add the server <your-panel-host>:<hostPort> after restarting the VM. The world lives in /opt/siliconhost-apps/minecraft/data (default memory 2 GB — size the VM accordingly). The installer sets EULA=TRUE, acknowledging the Minecraft EULA on your behalf; review it at minecraft.net/eula. Watch startup progress from the VM console: docker logs -f minecraft.',
     timeoutMs: LONG_INSTALLER_TIMEOUT,
+    config: [
+      { key: 'mcVersion', label: 'Server version', type: 'text', default: 'latest', pattern: '^[A-Za-z0-9._-]{1,40}$', help: 'The itzg/minecraft-server VERSION value: latest, 1.21, 1.20.6, SNAPSHOT …' },
+      { key: 'mcMemory', label: 'Memory limit', type: 'select', options: ['2G', '3G', '4G', '6G'], default: '2G', help: 'Size this to the VM RAM; the JDK heap needs headroom.' },
+    ],
   },
 
   // ── AI assistant ─────────────────────────────────────────────────────────
@@ -383,7 +412,8 @@ function guestRamKb() {
 
 // ─── CMS installers ─────────────────────────────────────────────────────────
 
-function wordpressScript() {
+function wordpressScript(cfg = {}) {
+  const emailActive = typeof cfg.adminEmail === 'string' && cfg.adminEmail.includes('@');
   return `${dockerSetup()}
 APP_DIR=${APP_ROOT}/wordpress
 APP_PORT=8080
@@ -419,16 +449,41 @@ services:
       WORDPRESS_DB_PASSWORD: \${DB_PASSWORD}
     volumes:
       - wordpress:/var/www/html
+  wp:
+    image: wordpress:cli
+    restart: "no"
+    depends_on:
+      - wordpress
+    user: "33:33"
+    environment:
+      APP_PORT: \${APP_PORT}
+      WP_TITLE: ${composeEnvValue(cfg.siteTitle || 'SiliconHost')}
+      WP_ADMIN_USER: ${composeEnvValue(cfg.adminName || 'admin')}
+      WP_ADMIN_PASS: ${composeEnvValue(cfg.adminPass || genPassword(12))}${emailActive ? `
+      WP_ADMIN_EMAIL: ${composeEnvValue(cfg.adminEmail)}` : ''}
+    volumes:
+      - wordpress:/var/www/html
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      i=0;
+      until wp core is-installed 2>/dev/null; do
+        i=$$((i+1));
+        if [ "$$i" -ge 60 ]; then echo "WordPress did not come up for wp-cli in time." >&2; exit 1; fi;
+        sleep 5;
+      done;
+      wp core install --url="http://localhost:\${APP_PORT}" --title="$$WP_TITLE" --admin_user="$$WP_ADMIN_USER" --admin_password="$$WP_ADMIN_PASS" --skip-email${emailActive ? ' --admin_email="$$WP_ADMIN_EMAIL"' : ''};
 volumes:
   database:
   wordpress:
 YAML
 docker compose up -d
+docker compose wait wp || { echo "The WordPress one-click setup failed. The stack is running; finish setup in the browser." >&2; exit 1; }
 echo "WordPress containers are running on guest port $APP_PORT."
 `;
 }
 
-function woocommerceScript() {
+function woocommerceScript(cfg = {}) {
+  const emailActive = typeof cfg.adminEmail === 'string' && cfg.adminEmail.includes('@');
   return `${dockerSetup()}
 APP_DIR=${APP_ROOT}/woocommerce
 APP_PORT=8081
@@ -472,7 +527,10 @@ services:
     user: "33:33"
     environment:
       APP_PORT: \${APP_PORT}
-      WP_ADMIN_PASS: \${WP_ADMIN_PASS}
+      WP_TITLE: ${composeEnvValue(cfg.siteTitle || 'SiliconHost')}
+      WP_ADMIN_USER: ${composeEnvValue(cfg.adminName || 'admin')}
+      WP_ADMIN_PASS: ${composeEnvValue(cfg.adminPass || genPassword(12))}${emailActive ? `
+      WP_ADMIN_EMAIL: ${composeEnvValue(cfg.adminEmail)}` : ''}
     volumes:
       - wordpress:/var/www/html
     entrypoint: ["/bin/sh", "-c"]
@@ -483,7 +541,7 @@ services:
         if [ "$$i" -ge 60 ]; then echo "WordPress did not come up for wp-cli in time." >&2; exit 1; fi;
         sleep 5;
       done;
-      wp core install --url="http://localhost:\${APP_PORT}" --title=SiliconHost --admin_user=admin --admin_password="$$WP_ADMIN_PASS" --skip-email;
+      wp core install --url="http://localhost:\${APP_PORT}" --title="$$WP_TITLE" --admin_user="$$WP_ADMIN_USER" --admin_password="$$WP_ADMIN_PASS" --skip-email${emailActive ? ' --admin_email="$$WP_ADMIN_EMAIL"' : ''};
       wp plugin install woocommerce --activate
 volumes:
   database:
@@ -649,7 +707,10 @@ echo "MediaWiki and MariaDB are running on guest port 8085. Finish the browser i
 
 // ─── Control panel installers ───────────────────────────────────────────────
 
-function cloudpanelScript() {
+function cloudpanelScript(cfg = {}) {
+  const panUser = cfg.userName || 'admin';
+  const panEmail = cfg.userEmail || 'admin@cloudpanel.local';
+  const panPass = cfg.userPass || genPassword(12);
   return `${requireDebianGuest()}
 . /etc/os-release
 if [ "$ID" = "debian" ]; then
@@ -662,6 +723,11 @@ else
 fi
 export DEBIAN_FRONTEND=noninteractive
 curl -sSL https://installer.cloudpanel.io/ce/v2/install.sh | bash
+if command -v clpctl >/dev/null 2>&1; then
+  clpctl user:add --user-name=${shQuote(panUser)} --email=${shQuote(panEmail)} --role=admins --password=${shQuote(panPass)} 2>/dev/null || echo "The panel admin could not be seeded automatically; open CloudPanel on guest port 8443 and finish admin setup in the browser."
+else
+  echo "clpctl was not found; open CloudPanel on guest port 8443 and finish admin setup in the browser."
+fi
 echo "CloudPanel 2 is installed. Admin setup opens on guest port 8443."
 `;
 }
@@ -824,16 +890,17 @@ echo "OpenLiteSpeed web is on guest port 8088; WebAdmin stays on guest port 7080
 `;
 }
 
-function gitlabScript() {
+function gitlabScript(cfg = {}) {
+  const rootPass = cfg.rootPass || '';
   return `${requireDebianGuest()}
 ${guestRamKb()}
 if [ "$RAM_KB" -lt 3500000 ]; then echo "GitLab CE needs a VM with at least 4 GB of RAM. Reshape this VM and retry." >&2; exit 1; fi
 export DEBIAN_FRONTEND=noninteractive
-if ! dpkg -s gitlab-ce >/dev/null 2>&1; then
+${rootPass ? `export GITLAB_ROOT_PASSWORD=${shQuote(rootPass)}\n` : ''}if ! dpkg -s gitlab-ce >/dev/null 2>&1; then
   curl -fsSL https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh | bash -
   EXTERNAL_URL="http://$(hostname)" apt-get install -y gitlab-ce
 fi
-echo "GitLab CE is installed on guest port 80. Root one-time password: cat /etc/gitlab/initial_root_password"
+${rootPass ? 'echo "GitLab CE is installed on guest port 80. Sign in as root with the initial root password you set in the install form."' : 'echo "GitLab CE is installed on guest port 80. Root one-time password: cat /etc/gitlab/initial_root_password"'}
 `;
 }
 
@@ -1009,7 +1076,9 @@ echo "WireGuard is up. Server: /etc/wireguard/wg0.conf · Client profile: /etc/w
 `;
 }
 
-function openVpnAsScript() {
+function openVpnAsScript(cfg = {}) {
+  const vpnUser = cfg.adminUser || 'openvpn';
+  const vpnPass = cfg.adminPass || genPassword(12);
   return `${requireDistroIds('debian|ubuntu')}
 if [ "$(dpkg --print-architecture)" != "amd64" ]; then echo "OpenVPN Access Server publishes amd64 packages." >&2; exit 1; fi
 export DEBIAN_FRONTEND=noninteractive
@@ -1020,15 +1089,16 @@ wget -qO /etc/apt/keyrings/openvpn-repo-public.asc https://as-repository.openvpn
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.asc] http://as-repository.openvpn.net/as/debian $(lsb_release -sc) main" > /etc/apt/sources.list.d/openvpn-as-repo.list
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y openvpn-as
-AS_PASS=$(openssl rand -hex 12)
+AS_PASS=${shQuote(vpnPass)}
+VPN_USER=${shQuote(vpnUser)}
 if [ -x /usr/local/openvpn_as/scripts/sacli ]; then
-  /usr/local/openvpn_as/scripts/sacli --user openvpn --new_pass "$AS_PASS" UpdateUserPassword >/dev/null 2>&1 || true
+  /usr/local/openvpn_as/scripts/sacli --user "$VPN_USER" --new_pass "$AS_PASS" UpdateUserPassword >/dev/null 2>&1 || true
 fi
 mkdir -p ${APP_ROOT}/openvpn-as
 cat > ${APP_ROOT}/openvpn-as/access.txt <<ACCESS
 OpenVPN Access Server
 Admin UI: https://<PANEL_HOST>:<ADMIN_PORT>/admin
-Admin user: openvpn
+Admin user: \${VPN_USER}
 Admin password: \${AS_PASS}
 Data channel: guest port 443 (add a manual mapping to expose VPN clients)
 ACCESS
@@ -1099,7 +1169,9 @@ echo "Owncast is running: web on guest port 8080, RTMP ingest on guest port 1935
 
 // ─── Game server installers ─────────────────────────────────────────────────
 
-function minecraftScript() {
+function minecraftScript(cfg = {}) {
+  const mcVersion = /^(latest|[A-Za-z0-9._-]{1,40})$/.test(String(cfg.mcVersion || '')) ? String(cfg.mcVersion) : 'latest';
+  const mcMemory = ['2G', '3G', '4G', '6G'].includes(cfg.mcMemory) ? cfg.mcMemory : '2G';
   return `${dockerSetup()}
 APP_DIR=${APP_ROOT}/minecraft
 mkdir -p "$APP_DIR/data"
@@ -1113,14 +1185,15 @@ services:
       - "0.0.0.0:25565:25565"
     environment:
       EULA: "TRUE"
-      MEMORY: "2G"
+      VERSION: "${mcVersion}"
+      MEMORY: "${mcMemory}"
     volumes:
       - ./data:/data
     stdin_open: true
     tty: true
 YAML
 docker compose up -d
-echo "The Minecraft server container is starting on guest port 25565; the first run downloads server files."
+echo "The Minecraft server container is starting on guest port 25565; the first run downloads server files (version ${mcVersion}, memory ${mcMemory})."
 `;
 }
 
@@ -1159,6 +1232,555 @@ const installers = {
   owncast: owncastScript,
   minecraft: minecraftScript,
 };
+
+// ─── Install configuration, Cloudflare tunnels & streamed job handling ──────
+
+function genPassword(bytes = 12) {
+  return crypto.randomBytes(bytes).toString('hex');
+}
+
+// Compose value helper: embedded literal for compose.yaml. Escapes backslashes,
+// quotes and Interpolation dollars ($ -> $$) so compose keeps them literal.
+function composeEnvValue(value) {
+  const text = String(value).replace(/[\r\n\t]/g, ' ');
+  return '"' + text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '$$$$') + '"';
+}
+
+// POSIX single-quote shell wrapper for values written at build time.
+function shQuote(value) {
+  return "'" + String(value).split("'").join("'\\''") + "'";
+}
+
+function cloudflaredSection(token) {
+  return `set -euo pipefail
+${requireDebianGuest()}
+echo "══ Cloudflare Tunnel phase ══"
+echo "Installing cloudflared from the official Cloudflare release channel…"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl gnupg
+CF_ARCH=$(dpkg --print-architecture)
+case "$CF_ARCH" in amd64|arm64) ;; *) echo "cloudflared publishes amd64/arm64 .deb packages only." >&2; exit 1;; esac
+curl -fsSL -o /tmp/cloudflared.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$CF_ARCH.deb"
+dpkg -i /tmp/cloudflared.deb || { apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y -f; dpkg -i /tmp/cloudflared.deb; }
+rm -f /tmp/cloudflared.deb
+cloudflared service install ${shQuote(token)}
+sleep 2
+if systemctl is-active --quiet cloudflared; then
+  echo "cloudflared service is active and connected to Cloudflare."
+  echo "Map your hostname in dash.cloudflare.com > Networking > Tunnels to the app (for example http://localhost:8080)."
+else
+  echo "cloudflared was installed but the service is not active yet." >&2
+  echo "Inspect it inside the VM with: systemctl status cloudflared" >&2
+  exit 1
+fi
+`;
+}
+
+function extractTunnelToken(input) {
+  const text = String(input ?? '').trim();
+  if (!text) {
+    throw new TypeError('Enter the full cloudflared service install command from the Cloudflare dashboard, including the eyJ… tunnel token.');
+  }
+  if (text.length > 2000) {
+    throw new TypeError('That tunnel command is too long. Copy the install line from the Cloudflare dashboard exactly as shown.');
+  }
+  const match = text.match(/eyJ[A-Za-z0-9_-]{80,}=*/);
+  if (!match) {
+    throw new TypeError('The tunnel command must contain the long eyJ… token that follows "cloudflared service install" on the Cloudflare dashboard.');
+  }
+  return match[0];
+}
+
+function normalizeAppConfig(app, raw) {
+  const fields = app && Array.isArray(app.config) ? app.config : [];
+  if (!fields.length) {
+    if (raw !== undefined && raw !== null && typeof raw === 'object') {
+      throw new TypeError(`${app ? app.name : 'This app'} does not accept installation options.`);
+    }
+    return {};
+  }
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const out = {};
+  for (const field of fields) {
+    let value = String(source[field.key] ?? '').trim();
+    if (!value && field.default !== undefined) value = String(field.default);
+    if (!value) {
+      if (field.autoGen) value = genPassword(field.autoGen);
+      if (field.required) throw new TypeError(`${field.label} is required to install ${app.name}.`);
+      continue;
+    }
+    if (value.length > 128) throw new TypeError(`${field.label} is too long.`);
+    if (field.type === 'email' && !/^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/.test(value)) {
+      throw new TypeError('Enter a valid email address.');
+    }
+    if (field.min && value.length < field.min) {
+      throw new TypeError(`${field.label} must be at least ${field.min} characters.`);
+    }
+    if (field.pattern && !new RegExp(field.pattern).test(value)) {
+      throw new TypeError(`${field.label} has an unsupported value.`);
+    }
+    if (Array.isArray(field.options) && field.options.length && !field.options.includes(value)) {
+      throw new TypeError(`${field.label} must be one of: ${field.options.join(', ')}.`);
+    }
+    out[field.key] = value;
+  }
+  return out;
+}
+
+function publicConfigView(app, cfg) {
+  const out = {};
+  for (const field of app && Array.isArray(app.config) ? app.config : []) {
+    if (field.secret) continue;
+    if (cfg[field.key] !== undefined) out[field.key] = cfg[field.key];
+  }
+  return out;
+}
+
+function credentialsView(app, cfg) {
+  const rows = [];
+  for (const field of app && Array.isArray(app.config) ? app.config : []) {
+    if (!field.secret || !cfg[field.key]) continue;
+    rows.push({
+      key: field.key,
+      label: field.label,
+      generated: Boolean(field.autoGen),
+      value: field.autoGen ? cfg[field.key] : '•••••••• (the value you entered)',
+    });
+  }
+  return rows;
+}
+
+const INSTALL_LOG_CHUNK_MAX = 2000;
+const INSTALL_LOG_CHUNKS_MAX = 4000;
+const INSTALL_LOG_BUFFER_FLUSH = 40;
+
+function clipChunk(text, kind) {
+  return { t: kind, s: String(text).slice(0, INSTALL_LOG_CHUNK_MAX) };
+}
+
+function makeLogSink(jobId) {
+  const buffer = [];
+  let timer = null;
+  let total = 0;
+  const flush = async () => {
+    timer = null;
+    if (!buffer.length) return;
+    const batch = buffer.splice(0, buffer.length);
+    total += batch.length;
+    await collections.app_store_installs
+      .updateOne(
+        { id: jobId },
+        { $push: { logs: { $each: batch, $slice: -INSTALL_LOG_CHUNKS_MAX } }, $set: { log_total: total } },
+      )
+      .catch(() => {});
+  };
+  return {
+    push(kind, text) {
+      if (!text) return;
+      buffer.push(clipChunk(text, kind));
+      if (buffer.length >= INSTALL_LOG_BUFFER_FLUSH) {
+        if (!timer) void flush();
+      } else if (!timer) {
+        timer = setTimeout(flush, 1500);
+        if (typeof timer.unref === 'function') timer.unref();
+      }
+    },
+    async end() {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      await flush();
+    },
+  };
+}
+
+async function markJob(jobId, update) {
+  await collections.app_store_installs.updateOne({ id: jobId }, update).catch(() => {});
+}
+
+function serializeInstallJob(doc, { since = 0, includeLogs = true } = {}) {
+  const logs = Array.isArray(doc.logs) ? doc.logs : [];
+  const total = Math.max(Number(doc.log_total) || 0, logs.length);
+  const availableFrom = total - logs.length;
+  let from = total;
+  let slice = [];
+  if (includeLogs) {
+    if (since > availableFrom) from = Math.min(since, total);
+    else from = availableFrom;
+    slice = logs.slice(Math.max(0, from - availableFrom)).map((entry) => ({ t: entry.t, s: String(entry.s || '') }));
+  }
+  let status = doc.status;
+  if (status === 'running' && doc.started_at) {
+    const startedMs = Date.parse(doc.started_at);
+    if (Number.isFinite(startedMs) && Date.now() - startedMs > 2.5 * 60 * 60 * 1000) status = 'stale';
+  }
+  return {
+    id: doc.id,
+    appId: doc.app_id,
+    appName: doc.app_name,
+    kind: doc.kind,
+    vmId: doc.vm_id,
+    userId: doc.user_id,
+    status,
+    phase: doc.phase,
+    startedAt: doc.started_at || null,
+    finishedAt: doc.finished_at || null,
+    exitCode: doc.exit_code ?? null,
+    hasCloudflare: Boolean(doc.has_cloudflare),
+    hostPort: doc.host_port ?? null,
+    guestPort: doc.guest_port ?? null,
+    config: doc.config || {},
+    result: doc.result || null,
+    from: slice.length ? from : total,
+    total,
+    logs: slice,
+  };
+}
+
+function buildInstallResult(plan, { cloudflareNote, cloudflareFailed, appFailed, errorMessage } = {}) {
+  const app = plan.app;
+  const portInfo = { hostPort: plan.hostPort, guestPort: plan.guestPort };
+  const config = plan.publicConfig || publicConfigView(app, plan.cfg);
+  const result = {
+    appId: plan.id,
+    appName: plan.appName,
+    kind: plan.kind,
+    hostPort: plan.hostPort ?? null,
+    guestPort: plan.guestPort ?? null,
+    restartRequired: Boolean(plan.hostPort),
+    scheme: app ? (app.scheme || 'http') : 'http',
+    config,
+    credentials: app ? credentialsView(app, plan.cfg) : [],
+    cloudflare: plan.kind === 'cloudflared'
+      ? { enabled: true, status: 'done', note: 'See the console output for the service state.' }
+      : { enabled: Boolean(cloudflareNote), status: cloudflareFailed ? 'failed' : (cloudflareNote ? 'done' : 'skipped'), error: cloudflareFailed || null, note: cloudflareNote || null },
+  };
+  if (plan.openClawToken) result.openClawToken = plan.openClawToken;
+  if (appFailed) {
+    result.appInstalled = false;
+    result.errorMessage = errorMessage || 'The installer failed.';
+    result.message = `${plan.appName || 'The installer'} failed${errorMessage ? ': ' + errorMessage : ''}.`;
+    return result;
+  }
+  result.appInstalled = true;
+  if (plan.kind === 'openclaw') {
+    result.message = null;
+    return result;
+  }
+  result.message = resultMessage(app, portInfo, plan.cfg) || 'Installation finished. See the console output for details.';
+  return result;
+}
+
+async function buildPlan({ vm, user, appId, config, customScript }) {
+  if (vm.status !== 'running') throw new Error('Start the VM and wait for SSH access before installing an app.');
+  const id = String(appId || '');
+  let hostPort = null;
+  let guestPort = null;
+  let openClawToken = null;
+  let app = null;
+  let script;
+  let timeout = DEFAULT_INSTALLER_TIMEOUT;
+  let cfg = {};
+  let forwards = [];
+
+  if (id === 'custom') {
+    if (typeof customScript !== 'string' || !customScript.trim()) throw new TypeError('Enter an installation script.');
+    if (Buffer.byteLength(customScript, 'utf8') > MAX_CUSTOM_SCRIPT_BYTES) {
+      throw new TypeError(`Custom scripts are limited to ${MAX_CUSTOM_SCRIPT_BYTES / 1024} KB.`);
+    }
+    script = customScript;
+  } else if (id === 'openclaw') {
+    openClawToken = crypto.randomBytes(32).toString('hex');
+    script = openClawScript(openClawToken);
+  } else {
+    app = catalog.find((entry) => entry.id === id);
+    if (!app || !installers[id]) throw new TypeError('Choose an app from the catalog or select custom script.');
+    timeout = app.timeoutMs || DEFAULT_INSTALLER_TIMEOUT;
+    cfg = normalizeAppConfig(app, config);
+    script = installers[id](cfg);
+    if (app.guestPort) {
+      guestPort = app.guestPort;
+      forwards = ensureGuestPortAvailable(vm, guestPort);
+      hostPort = await allocateHostPort(vm);
+    }
+  }
+
+  return {
+    kind: id === 'custom' ? 'custom' : app ? 'catalog' : 'openclaw',
+    id,
+    app,
+    appName: app ? app.name : (id === 'openclaw' ? 'OpenClaw' : 'custom script'),
+    cfg,
+    publicConfig: publicConfigView(app, cfg),
+    script,
+    timeout,
+    hostPort,
+    guestPort,
+    forwards,
+    openClawToken,
+  };
+}
+
+async function executeInstallJob(vm, user, plan, jobId, { hasCloudflare, cloudflareToken }) {
+  const sink = makeLogSink(jobId);
+  const tunnelInstalled = { value: false };
+  const isTunnelOnly = plan.kind === 'cloudflared';
+  try {
+    sink.push('info', `▶ Installing ${plan.appName} on VM #${vm.id} (${vm.name}).`);
+    if (plan.kind === 'custom') sink.push('info', 'Custom script — the panel does not review its commands.');
+    if (!isTunnelOnly && plan.hostPort) {
+      sink.push('info', `Port mapping reserved: guest ${plan.guestPort} → host ${plan.hostPort} (activates at the next VM restart).`);
+    }
+    const run = await runScript(vm, plan.script, plan.timeout, {
+      onLog: (text, isErr) => sink.push(isErr ? 'err' : 'out', text),
+    });
+    if (plan.kind === 'catalog' && plan.hostPort && plan.guestPort) {
+      await vmService.update(vm, { port_forwards: [...plan.forwards, { host: plan.hostPort, guest: plan.guestPort }] }, user);
+      sink.push('info', `Saved mapping guest ${plan.guestPort} → host ${plan.hostPort}.`);
+    }
+    let cloudflareError = null;
+    if (!isTunnelOnly && hasCloudflare && cloudflareToken) {
+      await markJob(jobId, { $set: { phase: 'cloudflared' } });
+      sink.push('info', '══ Cloudflare Tunnel phase ══');
+      try {
+        const cf = await runScript(vm, cloudflaredSection(cloudflareToken), 20 * 60 * 1000, {
+          onLog: (text, isErr) => sink.push(isErr ? 'err' : 'out', text),
+        });
+        tunnelInstalled.value = cf.code === 0;
+      } catch (error) {
+        cloudflareError = error;
+      }
+    }
+    await sink.end();
+    const cfNote = hasCloudflare && !isTunnelOnly && !cloudflareError
+      ? (plan.guestPort
+        ? `Tunnel connected. In dash.cloudflare.com go to Networking > Tunnels > your tunnel > Public Hostname and map your hostname to http://localhost:${plan.guestPort} to reach this app.`
+        : 'Tunnel connected. Map a Public Hostname for this tunnel in the Cloudflare Zero Trust dashboard.')
+      : null;
+    const result = buildInstallResult(plan, {
+      cloudflareNote: cfNote,
+      cloudflareFailed: cloudflareError ? String(cloudflareError.message || 'Cloudflare tunnel installation failed.') : null,
+    });
+    await markJob(jobId, {
+      $set: {
+        phase: 'done',
+        status: 'success',
+        finished_at: new Date().toISOString(),
+        exit_code: run ? run.code : null,
+        result,
+      },
+    });
+    await logActivity({
+      user_id: user.id,
+      vm_id: vm.id,
+      event: isTunnelOnly ? 'vm:cloudflared_install' : 'vm:app_install',
+      details: {
+        app: plan.id,
+        ...(plan.hostPort ? { host_port: plan.hostPort, guest_port: plan.guestPort } : {}),
+        ...(cloudflareError ? { cloudflare_failed: true } : {}),
+      },
+    });
+    return { result };
+  } catch (error) {
+    await sink.end();
+    const message = String((error && error.message) || 'The installer failed. Check the VM SSH connection and try again.');
+    const result = buildInstallResult(plan, { appFailed: true, errorMessage: message });
+    result.appInstalled = false;
+    result.errorMessage = message;
+    await markJob(jobId, {
+      $set: {
+        phase: 'done',
+        status: 'failed',
+        finished_at: new Date().toISOString(),
+        exit_code: null,
+        result,
+      },
+    });
+    return { status: 'failed' };
+  }
+}
+
+async function createInstallJob(plan, vm, user, { hasCloudflare }) {
+  const id = crypto.randomUUID();
+  const doc = {
+    id,
+    app_id: plan.id,
+    app_name: plan.appName,
+    kind: plan.kind,
+    vm_id: vm.id,
+    user_id: Number(user.id),
+    status: 'running',
+    phase: plan.kind === 'cloudflared' ? 'cloudflared' : 'app',
+    started_at: new Date().toISOString(),
+    finished_at: null,
+    exit_code: null,
+    host_port: plan.hostPort ?? null,
+    guest_port: plan.guestPort ?? null,
+    has_cloudflare: Boolean(hasCloudflare),
+    config: plan.publicConfig || {},
+    log_total: 0,
+    logs: [],
+    result: null,
+  };
+  try {
+    await collections.app_store_installs.insertOne(doc);
+  } catch (error) {
+    if (/duplicate/i.test(String(error.message))) throw new Error('This install job already exists. Refresh and try again.');
+    throw error;
+  }
+  return id;
+}
+
+async function getOwnedInstallJob(jobId, user) {
+  const doc = await collections.app_store_installs.findOne({ id: String(jobId || '') });
+  if (!doc) return null;
+  const privileged = user && (user.role === 'admin' || user.root_admin);
+  if (!privileged && Number(doc.user_id) !== Number(user.id)) return null;
+  return doc;
+}
+
+async function listInstallsForVm(vm, user) {
+  const privileged = user && (user.role === 'admin' || user.root_admin);
+  const ownerView = privileged || Number(vm.owner_id) === Number(user.id);
+  const query = ownerView ? { vm_id: vm.id } : { vm_id: vm.id, user_id: Number(user.id) };
+  const docs = await collections.app_store_installs.find(query).sort({ started_at: -1 }).limit(60).toArray();
+  return docs.map((doc) => serializeInstallJob(doc, { includeLogs: false }));
+}
+
+function refreshJobMessage(job, newHostPort) {
+  try {
+    const app = catalog.find((entry) => entry.id === job.app_id) || null;
+    if (!app || !job.result || !job.result.message) return job.result ? job.result.message : null;
+    const cfg = job.config || {};
+    const raw = typeof app.resultNote === 'function' ? app.resultNote(cfg) : null;
+    return resultMessage(app, { hostPort: newHostPort, guestPort: job.guest_port }, cfg);
+  } catch (_) {
+    return job.result ? job.result.message : null;
+  }
+}
+
+async function renewInstallPort({ job, vm, user, preferredPort }) {
+  if (job.status === 'running' || job.phase !== 'done') {
+    throw new Error('Wait for the installation to finish before changing its port mapping.');
+  }
+  if (!Number.isInteger(Number(job.host_port)) || !Number.isInteger(Number(job.guest_port))) {
+    throw new TypeError('This installation has no public port mapping to change.');
+  }
+  const preferredText = preferredPort === undefined || preferredPort === null ? '' : String(preferredPort).trim();
+  let newHost;
+  if (preferredText === '') {
+    newHost = await allocateHostPort(vm);
+  } else {
+    newHost = Number(preferredText);
+    if (!Number.isSafeInteger(newHost) || newHost < 1024 || newHost > 65535) {
+      throw new TypeError('Pick a host port between 1024 and 65535, or leave the field empty for an automatic one.');
+    }
+    if (newHost === Number(job.host_port)) {
+      throw new TypeError('That is already the current host port for this app.');
+    }
+    const used = new Set([Number(vm.ssh_port), Number(vm.vnc_port), Number(vm.agent_port)]);
+    for (const item of await collections.vms.find({}, { projection: { ssh_port: 1, vnc_port: 1, agent_port: 1, port_forwards: 1 } }).toArray()) {
+      for (const port of [item.ssh_port, item.vnc_port, item.agent_port]) {
+        if (Number.isInteger(Number(port))) used.add(Number(port));
+      }
+      for (const forward of parsePortForwards(item.port_forwards)) {
+        if (Number.isInteger(Number(forward.host))) used.add(Number(forward.host));
+      }
+    }
+    if (used.has(newHost)) throw new TypeError(`Host port ${newHost} is already used on this panel.`);
+    if (!(await checkAvailablePort(newHost))) throw new TypeError(`Host port ${newHost} is not free on this host.`);
+  }
+  const forwards = parsePortForwards(vm.port_forwards);
+  const index = forwards.findIndex(
+    (forward) => Number(forward.host) === Number(job.host_port) && Number(forward.guest) === Number(job.guest_port),
+  );
+  if (index < 0) {
+    throw new TypeError('The original mapping is no longer present on this VM. Manage ports from VM Settings instead.');
+  }
+  const updated = forwards.slice();
+  updated[index] = { host: newHost, guest: Number(job.guest_port) };
+  await vmService.update(vm, { port_forwards: updated }, user);
+  const patch = { $set: { host_port: newHost } };
+  if (job.result) {
+    const updatedResult = { ...job.result, hostPort: newHost };
+    const refreshedMessage = refreshJobMessage(job, newHost);
+    if (refreshedMessage) updatedResult.message = refreshedMessage;
+    patch.$set.result = updatedResult;
+  }
+  await markJob(job.id, patch);
+  await logActivity({
+    user_id: user.id,
+    vm_id: vm.id,
+    event: 'vm:app_port_refresh',
+    details: { app: job.app_id, host_port: newHost, guest_port: job.guest_port },
+  });
+}
+
+async function startTunnelInstall({ vm, user, cloudflareToken }) {
+  if (vm.status !== 'running') throw new Error('Start the VM and wait for SSH access before installing an app.');
+  const token = extractTunnelToken(cloudflareToken);
+  const plan = {
+    kind: 'cloudflared',
+    id: 'cloudflared',
+    app: null,
+    appName: 'Cloudflare Tunnel',
+    cfg: {},
+    publicConfig: {},
+    script: cloudflaredSection(token),
+    timeout: 20 * 60 * 1000,
+    hostPort: null,
+    guestPort: null,
+    forwards: [],
+    openClawToken: null,
+  };
+  const jobId = await createInstallJob(plan, vm, user, { hasCloudflare: true });
+  void executeInstallJob(vm, user, plan, jobId, { hasCloudflare: false, cloudflareToken: token }).catch(() => {});
+  await logActivity({
+    user_id: user.id,
+    vm_id: vm.id,
+    event: 'vm:cloudflared_install',
+    details: { app: 'cloudflared' },
+  });
+  return getJobSnapshot(jobId);
+}
+
+function configDefs() {
+  const out = {};
+  for (const app of catalog) {
+    if (!Array.isArray(app.config) || !app.config.length) continue;
+    out[app.id] = app.config.map((field) => ({
+      key: field.key,
+      label: field.label,
+      type: field.type || 'text',
+      ...(field.placeholder !== undefined ? { placeholder: field.placeholder } : {}),
+      ...(field.default !== undefined ? { default: field.default } : {}),
+      ...(field.required ? { required: true } : {}),
+      ...(Array.isArray(field.options) ? { options: field.options.slice() } : {}),
+      ...(field.help ? { help: field.help } : {}),
+      ...(field.min ? { min: field.min } : {}),
+      secret: Boolean(field.secret),
+    }));
+  }
+  return out;
+}
+
+async function getJobSnapshot(jobId) {
+  const doc = await collections.app_store_installs.findOne({ id: jobId }).catch(() => null);
+  return doc ? serializeInstallJob(doc, { includeLogs: false }) : null;
+}
+
+async function startInstall({ vm, user, appId, config, customScript, cloudflareToken }) {
+  const plan = await buildPlan({ vm, user, appId, config, customScript });
+  let cfToken = null;
+  if (cloudflareToken !== undefined && cloudflareToken !== null && String(cloudflareToken).trim() !== '') {
+    cfToken = extractTunnelToken(cloudflareToken);
+  }
+  const jobId = await createInstallJob(plan, vm, user, { hasCloudflare: Boolean(cfToken) });
+  void executeInstallJob(vm, user, plan, jobId, { hasCloudflare: Boolean(cfToken), cloudflareToken: cfToken }).catch(() => {});
+  return { jobId, snapshot: await getJobSnapshot(jobId) };
+}
 
 // ─── Plumbing ───────────────────────────────────────────────────────────────
 
@@ -1214,15 +1836,20 @@ function ensureGuestPortAvailable(vm, guestPort) {
   return forwards;
 }
 
-async function runScript(vm, script, timeout = DEFAULT_INSTALLER_TIMEOUT) {
+async function runScript(vm, script, timeout = DEFAULT_INSTALLER_TIMEOUT, opts = {}) {
   const encoded = Buffer.from(script, 'utf8').toString('base64');
   const command = `printf '%s' '${encoded}' | sudo -n bash -c 'base64 -d | bash'`;
-  const result = await sshService.withExec(vm, command, { timeout, maxOutputBytes: 32 * 1024 });
+  const result = await sshService.withExec(vm, command, {
+    timeout,
+    maxOutputBytes: 32 * 1024,
+    ...(typeof opts.onLog === 'function' ? { onOutput: opts.onLog } : {}),
+  });
   if (result.code !== 0) {
     const error = new Error(`Guest installer exited with status ${result.code}.`);
     error.code = 'APP_INSTALL_FAILED';
     throw error;
   }
+  return result;
 }
 
 function fillPlaceholders(text, portInfo) {
@@ -1232,9 +1859,12 @@ function fillPlaceholders(text, portInfo) {
     .replace(/<APP_ROOT>/g, APP_ROOT);
 }
 
-function resultMessage(app, portInfo) {
+function resultMessage(app, portInfo, cfg) {
   if (!app) return null;
-  const note = app.resultNote ? fillPlaceholders(app.resultNote, portInfo) : null;
+  const rawNote = app.resultNote
+    ? (typeof app.resultNote === 'function' ? app.resultNote(cfg || {}) : app.resultNote)
+    : null;
+  const note = rawNote ? fillPlaceholders(rawNote, portInfo) : null;
   if (portInfo.hostPort && portInfo.guestPort) {
     if (app.portNote) return fillPlaceholders(app.portNote, portInfo);
     const base = `${app.name} is installed. Guest port ${portInfo.guestPort} is mapped to host port ${portInfo.hostPort}. Restart the VM to activate the QEMU port mapping, then open ${app.scheme === 'https' ? 'https' : 'http'}://<your-panel-host>:${portInfo.hostPort}. Allow the port through your host firewall if needed.`;
@@ -1245,58 +1875,26 @@ function resultMessage(app, portInfo) {
 }
 
 async function install({ vm, user, appId, customScript }) {
-  if (vm.status !== 'running') throw new Error('Start the VM and wait for SSH access before installing an app.');
-  const id = String(appId || '');
-  let hostPort = null;
-  let guestPort = null;
-  let openClawToken = null;
-  let script;
-  let app = null;
-
-  if (id === 'custom') {
-    if (typeof customScript !== 'string' || !customScript.trim()) throw new TypeError('Enter an installation script.');
-    if (Buffer.byteLength(customScript, 'utf8') > MAX_CUSTOM_SCRIPT_BYTES) {
-      throw new TypeError(`Custom scripts are limited to ${MAX_CUSTOM_SCRIPT_BYTES / 1024} KB.`);
-    }
-    script = customScript;
-    await runScript(vm, script);
-  } else if (id === 'openclaw') {
-    openClawToken = crypto.randomBytes(32).toString('hex');
-    script = openClawScript(openClawToken);
-    await runScript(vm, script);
-  } else {
-    app = catalog.find((entry) => entry.id === id);
-    if (!app || !installers[id]) throw new TypeError('Choose an app from the catalog or select custom script.');
-    const timeout = app.timeoutMs || DEFAULT_INSTALLER_TIMEOUT;
-    if (app.guestPort) {
-      guestPort = app.guestPort;
-      const forwards = ensureGuestPortAvailable(vm, guestPort);
-      hostPort = await allocateHostPort(vm);
-      script = installers[id]();
-      await runScript(vm, script, timeout);
-      await vmService.update(vm, { port_forwards: [...forwards, { host: hostPort, guest: guestPort }] }, user);
-    } else {
-      script = installers[id]();
-      await runScript(vm, script, timeout);
-    }
+  const plan = await buildPlan({ vm, user, appId, customScript });
+  await runScript(vm, plan.script, plan.timeout);
+  if (plan.kind === 'catalog' && plan.hostPort && plan.guestPort) {
+    await vmService.update(vm, { port_forwards: [...plan.forwards, { host: plan.hostPort, guest: plan.guestPort }] }, user);
   }
-
   await logActivity({
     user_id: user.id,
     vm_id: vm.id,
     event: 'vm:app_install',
-    details: { app: id, ...(hostPort ? { host_port: hostPort, guest_port: guestPort } : {}) },
+    details: { app: plan.id, ...(plan.hostPort ? { host_port: plan.hostPort, guest_port: plan.guestPort } : {}) },
   });
-
-  const portInfo = { hostPort, guestPort };
+  const portInfo = { hostPort: plan.hostPort, guestPort: plan.guestPort };
   return {
-    appId: id,
-    appName: app ? app.name : (id === 'openclaw' ? 'OpenClaw' : null),
-    hostPort,
-    guestPort,
-    restartRequired: Boolean(hostPort),
-    message: resultMessage(app, portInfo),
-    ...(openClawToken ? { openClawToken } : {}),
+    appId: plan.id,
+    appName: plan.app ? plan.app.name : (plan.id === 'openclaw' ? 'OpenClaw' : null),
+    hostPort: plan.hostPort,
+    guestPort: plan.guestPort,
+    restartRequired: Boolean(plan.hostPort),
+    message: resultMessage(plan.app, portInfo, plan.cfg),
+    ...(plan.openClawToken ? { openClawToken: plan.openClawToken } : {}),
   };
 }
 
@@ -1358,6 +1956,13 @@ echo "OpenClaw gateway started. Configure a model provider during onboarding."
 module.exports = {
   catalog,
   install,
+  startInstall,
+  getOwnedInstallJob,
+  serializeInstallJob,
+  listInstallsForVm,
+  renewInstallPort,
+  startTunnelInstall,
+  configDefs,
   parsePortForwards,
   wordpressScript,
   openClawScript,

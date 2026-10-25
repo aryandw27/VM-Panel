@@ -1,0 +1,85 @@
+<%- include('../../partials/head', { title: vm.name + ' - Installed Apps', styles: ['/css/app-store.css'] }) %>
+<%- include('../../partials/ambient') %>
+<%- include('../../partials/topbar') %>
+<%- include('../../partials/sidebar') %>
+<main class="main app-store installed-apps">
+  <header class="app-store-heading">
+    <div>
+      <p class="app-store-eyebrow">SILICONHOST / SERVER #<%= vm.id %></p>
+      <h1>Installed Apps</h1>
+      <p class="muted">Everything installed through the App Store on <strong><%= vm.name %></strong> — current status, ports, tunnels, and full installation logs.</p>
+    </div>
+    <div class="installed-apps-actions-head">
+      <span class="installed-apps-vm-pill <%= vm.status === 'running' ? 'is-running' : 'is-stopped' %>"><%= vm.status %></span>
+      <a class="btn btn-primary" href="/apps">Open App Store</a>
+    </div>
+  </header>
+
+  <% if (!installs.length) { %>
+    <section class="card app-store-empty">
+      <i data-lucide="package"></i>
+      <h2>Nothing installed yet</h2>
+      <p class="muted">Install your first application from the App Store — WordPress, CloudPanel, GitLab, Minecraft and many more are one click away.</p>
+      <a class="btn btn-primary" href="/apps">Browse the App Store</a>
+    </section>
+  <% } else { %>
+    <section class="installed-apps-list">
+      <% installs.forEach((install) => { %>
+        <article class="card installed-apps-card" data-install-id="<%= install.id %>">
+          <div class="installed-apps-card-top">
+            <span class="app-store-icon"><i data-lucide="<%= install.kind === 'cloudflared' ? 'cloud' : 'package' %>"></i></span>
+            <div class="installed-apps-title">
+              <h2><%= install.appName %></h2>
+              <span class="muted">started <%= install.startedAt ? new Date(install.startedAt).toLocaleString() : '—' %><% if (install.finishedAt) { %> · finished <%= new Date(install.finishedAt).toLocaleString() %><% } %></span>
+            </div>
+            <span class="app-store-status-pill is-<%= install.status === 'success' ? 'success' : install.status === 'failed' || install.status === 'stale' ? 'failed' : 'running' %>"><%= install.status %></span>
+          </div>
+
+          <div class="installed-apps-meta">
+            <% if (install.hostPort && install.guestPort) { %>
+              <div class="app-store-summary-row"><span>Guest port</span><b>:<%= install.guestPort %></b></div>
+              <div class="app-store-summary-row"><span>Public (host) port</span><b>:<%= install.hostPort %></b></div>
+              <div class="app-store-summary-row"><span>Open after VM restart</span><b>http<%= install.result && install.result.scheme === 'https' ? 's' : '' %>://&lt;your-panel-host&gt;:<%= install.hostPort %></b></div>
+            <% } else { %>
+              <div class="app-store-summary-row"><span>Exposure</span><b><%= install.kind === 'cloudflared' ? 'Cloudflare tunnel service' : 'private inside the VM' %></b></div>
+            <% } %>
+            <% if (install.kind === 'openclaw') { %>
+              <div class="app-store-summary-row"><span>Gateway</span><b>guest port 18789</b></div>
+            <% } %>
+            <% if (install.hasCloudflare || install.kind === 'cloudflared') { %>
+              <div class="app-store-summary-row"><span>Cloudflare Tunnel</span><b>requested during/after install</b></div>
+            <% } %>
+          </div>
+
+          <% if (install.result && install.result.message) { %>
+            <p class="installed-apps-message"><%= install.result.message %></p>
+          <% } %>
+
+          <div class="installed-apps-tools">
+            <% if (install.hostPort && install.guestPort) { %>
+              <form class="installed-apps-form" data-action="port">
+                <input type="number" min="1024" max="65535" placeholder="New host port (empty = auto)" data-field="preferredHostPort"/>
+                <button type="submit" class="btn btn-outline btn-sm">Update public port</button>
+              </form>
+            <% } %>
+            <% if (install.kind !== 'cloudflared') { %>
+              <form class="installed-apps-form" data-action="cloudflare">
+                <input type="text" placeholder="sudo cloudflared service install eyJ…" data-field="cloudflareToken" spellcheck="false"/>
+                <button type="submit" class="btn btn-outline btn-sm">Install tunnel</button>
+              </form>
+            <% } %>
+            <button type="button" class="btn btn-outline btn-sm" data-action="log">View install log</button>
+            <button type="button" class="btn btn-outline btn-sm" data-action="copy">Copy info</button>
+          </div>
+          <p class="installed-apps-status" data-role="status" hidden></p>
+          <pre class="installed-apps-log" data-role="log" hidden></pre>
+        </article>
+      <% }); %>
+    </section>
+  <% } %>
+</main>
+
+<script>window.APP_STORE_VM_ID = <%= vm.id %>;</script>
+<script src="/js/installed-apps.js" defer></script>
+<%- include('../../partials/music') %>
+<%- include('../../partials/foot') %>

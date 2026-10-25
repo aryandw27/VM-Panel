@@ -211,7 +211,8 @@ async function initDb() {
     'discord_bot_guilds', 'discord_bot_channels',
     'ai_credentials', 'ai_conversations', 'ai_messages', 'ai_events', 'ai_preferences',
     'ai_approvals', 'vm_operations', 'vm_operation_locks', 'incidents',
-    'security_request_analytics', 'security_ip_blocks'
+    'security_request_analytics', 'security_ip_blocks',
+    'app_store_installs'
   ];
   for (const name of names) {
     collections[name] = dbInstance.collection(name);
@@ -283,6 +284,9 @@ async function initDb() {
       collections.security_request_analytics.createIndex({ bucketStart: -1, lastSeenAt: -1 }),
       collections.security_request_analytics.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       collections.security_ip_blocks.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      collections.app_store_installs.createIndex({ id: 1 }, { unique: true }),
+      collections.app_store_installs.createIndex({ vm_id: 1, started_at: -1 }),
+      collections.app_store_installs.createIndex({ user_id: 1, started_at: -1 }),
     ]);
   } catch (e) {
     logger.warn('[mongo] index creation: ' + e.message);

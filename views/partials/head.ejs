@@ -52,6 +52,105 @@ html[data-panel-theme="default"], html[data-panel-theme="default"] body {
 </style>
 <% } %>
 <link rel="stylesheet" href="/css/siliconhost-design.css"/>
+<%
+const paletteRaw = settings['palette.overrides'];
+let paletteEntries = null;
+if (paletteRaw) {
+  try {
+    const parsed = typeof paletteRaw === 'string' ? JSON.parse(paletteRaw) : paletteRaw;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) paletteEntries = parsed;
+  } catch (_) { paletteEntries = null; }
+}
+const hexColorRe = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const paletteLines = [];
+if (paletteEntries) {
+  for (const [paletteKey, paletteValue] of Object.entries(paletteEntries)) {
+    if (typeof paletteValue !== 'string' || !hexColorRe.test(paletteValue)) continue;
+    paletteLines.push(`${paletteKey}: ${paletteValue};`);
+    if (paletteKey === '--sh-accent') {
+      paletteLines.push(`--sh-accent-hover: color-mix(in srgb, ${paletteValue} 86%, #ffffff);`);
+      paletteLines.push(`--sh-accent-soft: color-mix(in srgb, ${paletteValue} 12%, transparent);`);
+      paletteLines.push(`--sky-border: color-mix(in srgb, ${paletteValue} 24%, transparent);`);
+      paletteLines.push(`--sky-bg: color-mix(in srgb, ${paletteValue} 12%, transparent);`);
+      paletteLines.push(`--primary-border: color-mix(in srgb, ${paletteValue} 70%, transparent);`);
+      paletteLines.push(`--border-focus: ${paletteValue};`);
+    }
+    if (paletteKey === '--sh-success') {
+      paletteLines.push(`--emerald: ${paletteValue};`);
+      paletteLines.push(`--emerald-bg: color-mix(in srgb, ${paletteValue} 12%, transparent);`);
+      paletteLines.push(`--emerald-border: color-mix(in srgb, ${paletteValue} 26%, transparent);`);
+    }
+    if (paletteKey === '--sh-danger') {
+      paletteLines.push(`--rose: ${paletteValue};`);
+      paletteLines.push(`--rose-bg: color-mix(in srgb, ${paletteValue} 12%, transparent);`);
+      paletteLines.push(`--rose-border: color-mix(in srgb, ${paletteValue} 26%, transparent);`);
+    }
+    if (paletteKey === '--sh-warning') {
+      paletteLines.push(`--amber: ${paletteValue};`);
+      paletteLines.push(`--amber-bg: color-mix(in srgb, ${paletteValue} 14%, transparent);`);
+      paletteLines.push(`--amber-border: color-mix(in srgb, ${paletteValue} 28%, transparent);`);
+    }
+  }
+}
+%>
+<% if (paletteLines.length) { %>
+<style id="sh-palette-overrides">
+html[data-panel-theme] {
+  <%= paletteLines.join('\n  ') %>
+}
+</style>
+<% } %>
+<% if (activeThemeId === 'amoled-black') { %>
+<style id="sh-amoled-polish">
+/* AMOLED: white buttons & options; hovering a button/option inverts to a white background with black text */
+html[data-panel-theme="amoled-black"] .btn:not(.btn-danger):not(.btn-green):not(.btn-success),
+html[data-panel-theme="amoled-black"] .pill-btn:not(.btn-danger):not(.btn-green):not(.btn-success) {
+  background: transparent;
+  border-color: #2a2e35;
+  color: #f5f6f8;
+}
+html[data-panel-theme="amoled-black"] .btn-primary,
+html[data-panel-theme="amoled-black"] .btn-primary:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #0a0a0a;
+}
+html[data-panel-theme="amoled-black"] .btn:not(.btn-danger):not(.btn-green):not(.btn-success):hover,
+html[data-panel-theme="amoled-black"] .pill-btn:not(.btn-danger):not(.btn-green):not(.btn-success):hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #0a0a0a;
+}
+html[data-panel-theme="amoled-black"] .btn:disabled,
+html[data-panel-theme="amoled-black"] .pill-btn:disabled {
+  background: transparent;
+  border-color: #1e2126;
+  color: #6b7482;
+  opacity: .55;
+}
+html[data-panel-theme="amoled-black"] .nav-link:hover {
+  background: #ffffff !important;
+  color: #0a0a0a !important;
+}
+html[data-panel-theme="amoled-black"] .nav-link:hover .v-icon {
+  color: #0a0a0a !important;
+}
+html[data-panel-theme="amoled-black"] .vp-ai-launch {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #0a0a0a;
+}
+html[data-panel-theme="amoled-black"] .vp-ai-launch:hover {
+  background: #dfe3e9;
+  border-color: #dfe3e9;
+  color: #0a0a0a;
+}
+html[data-panel-theme="amoled-black"] ::selection {
+  background: #ffffff;
+  color: #0a0a0a;
+}
+</style>
+<% } %>
 <script>
 window.VP_CONFIG = { apiPort: 3002 };
 window.VP_TOKEN = "<%= (typeof token !== 'undefined' && token) ? token : '' %>";

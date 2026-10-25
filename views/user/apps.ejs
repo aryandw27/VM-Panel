@@ -82,6 +82,79 @@
   <div class="app-store-status" id="appStoreStatus" role="status" aria-live="polite" hidden></div>
   <section class="card app-store-result" id="appStoreResult" hidden aria-live="polite"></section>
 </main>
+
+<script type="application/json" id="appStoreConfigDefs"><%- JSON.stringify(configDefs || {}) %></script>
+
+<div class="app-store-modal" id="appStoreModal" hidden>
+  <div class="app-store-modal-backdrop" data-modal-close></div>
+  <div class="app-store-modal-card" role="dialog" aria-modal="true" aria-labelledby="appStoreModalTitle">
+    <header class="app-store-modal-head">
+      <div>
+        <p class="app-store-modal-eyebrow" id="appStoreModalEyebrow">INSTALL</p>
+        <h3 id="appStoreModalTitle">Configure installation</h3>
+        <p class="app-store-modal-sub muted" id="appStoreModalSub"></p>
+      </div>
+      <button type="button" class="app-store-modal-x" data-modal-close aria-label="Close installation window">&times;</button>
+    </header>
+
+    <section class="app-store-modal-body" id="appStoreConfigPane">
+      <div class="app-store-config-vm">
+        <span class="muted">Install on</span>
+        <strong id="appStoreTargetVm">—</strong>
+      </div>
+      <form id="appStoreConfigForm" autocomplete="off">
+        <div id="appStoreConfigFields" class="app-store-config-grid"></div>
+        <p class="app-store-config-error" id="appStoreConfigError" hidden></p>
+        <section class="app-store-cf">
+          <label class="app-store-cf-toggle">
+            <input type="checkbox" id="appStoreCfEnabled"/>
+            <span>Expose this app through a Cloudflare Tunnel (installs cloudflared after the app)</span>
+          </label>
+          <div id="appStoreCfFields" hidden>
+            <label for="appStoreCfToken">Cloudflare tunnel installation command</label>
+            <textarea id="appStoreCfToken" rows="3" spellcheck="false" placeholder="sudo cloudflared service install eyJhIjoi…"></textarea>
+            <p class="app-store-cf-help">
+              How to get it: go to <strong>dash.cloudflare.com</strong> &gt; select your domain &gt; go to
+              <strong>Networking &gt; Tunnels</strong> &gt; create a tunnel &gt; select your OS &gt; copy the installation command and paste it above.
+              The tunnel installs <em>after</em> the app. Afterwards map the hostname to this app in the Cloudflare Zero Trust dashboard.
+            </p>
+            <p class="app-store-cf-error" id="appStoreCfError" hidden></p>
+          </div>
+        </section>
+        <label class="app-store-trust">
+          <input type="checkbox" id="appStoreTrust"/>
+          <span>I trust this installer and understand it runs with administrator privileges inside the VM.</span>
+        </label>
+        <div class="app-store-modal-actions">
+          <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
+          <button type="button" class="btn btn-primary" id="appStoreStartInstall">Start installation</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="app-store-modal-body" id="appStoreInstallPane" hidden>
+      <div class="app-store-progress-row">
+        <div class="app-store-progress" aria-hidden="true"><div class="app-store-progress-bar" id="appStoreProgressBar"></div></div>
+        <span class="app-store-pct" id="appStorePct">0%</span>
+      </div>
+      <div class="app-store-phase-row">
+        <span class="app-store-phase" id="appStorePhase">Preparing…</span>
+        <span class="app-store-timer" id="appStoreTimer">00:00</span>
+        <span class="app-store-status-pill" id="appStoreJobStatus">starting</span>
+      </div>
+      <div class="app-store-console" id="appStoreConsole" tabindex="0" aria-label="Installation console output"></div>
+      <div class="app-store-console-foot">
+        <label class="app-store-autoscroll"><input type="checkbox" id="appStoreAutoScroll" checked/> Auto-scroll</label>
+        <span class="muted" id="appStoreLogCount">0 lines</span>
+      </div>
+      <section class="app-store-summary" id="appStoreSummary" hidden aria-live="polite"></section>
+      <div class="app-store-modal-actions">
+        <button type="button" class="btn btn-outline" id="appStoreHideBtn" hidden>Hide — installation keeps running</button>
+        <button type="button" class="btn btn-primary" id="appStoreCloseDone" hidden>Close</button>
+      </div>
+    </section>
+  </div>
+</div>
 <%- include('../partials/music') %>
 <%- include('../partials/foot') %>
 <script src="/js/app-store.js" defer></script>

@@ -904,6 +904,62 @@ router.get('/admin/settings', async (req, res) => {
   render(res, 'settings', { all, wallpapers, updated: req.query.updated || '', cacheStatus });
 });
 
+const PALETTE_TOKENS = [
+  '--sh-bg', '--sh-surface', '--sh-surface-raised', '--sh-surface-hover',
+  '--sh-border', '--sh-border-strong', '--sh-text', '--sh-text-muted', '--sh-text-subtle',
+  '--sh-accent', '--sh-success', '--sh-danger', '--sh-warning',
+  '--sh-sidebar-bg', '--sh-sidebar-text', '--sh-sidebar-hover', '--sh-sidebar-hover-text',
+  '--sh-sidebar-icon', '--sh-sidebar-muted', '--sh-topbar-bg',
+  '--sh-auth-bg', '--sh-auth-card-bg', '--sh-auth-card-border',
+];
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+function readPaletteOverrides(raw) {
+  try {
+    const parsed = raw && typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+  } catch (_) {}
+  return {};
+}
+
+router.get('/admin/customisation', async (req, res) => {
+  render(res, 'customisation', { overrides: readPaletteOverrides(settings.get('palette.overrides')) });
+});
+
+router.post('/admin/customisation/palette', requireSameOrigin, express.json({ limit: '8kb' }), async (req, res) => {
+  try {
+    const incoming = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? (typeof req.body.overrides === 'object' && req.body.overrides && !Array.isArray(req.body.overrides) ? req.body.overrides : req.body)
+      : null;
+    if (!incoming) {
+      return res.status(400).json({ ok: false, error: 'Send the palette as an object of CSS variable names mapped to hex colors.' });
+    }
+    const clean = {};
+    for (const [key, value] of Object.entries(incoming)) {
+      if (!PALETTE_TOKENS.includes(key)) continue;
+      if (typeof value !== 'string' || !HEX_COLOR_RE.test(value)) continue;
+      clean[key] = value.toLowerCase();
+    }
+    settings.set('palette.overrides', clean);
+    await activity.logActivity({ user_id: req.user.id, event: 'admin:palette_update', details: { tokens: Object.keys(clean) } });
+    return res.json({ ok: true, overrides: clean });
+  } catch (error) {
+    logger.error(`[admin] Palette save failed: ${error.message}`);
+    return res.status(500).json({ ok: false, error: 'The palette could not be saved.' });
+  }
+});
+
+router.post('/admin/customisation/palette/reset', requireSameOrigin, async (req, res) => {
+  try {
+    settings.set('palette.overrides', {});
+    await activity.logActivity({ user_id: req.user.id, event: 'admin:palette_reset' });
+    return res.json({ ok: true, overrides: {} });
+  } catch (error) {
+    logger.error(`[admin] Palette reset failed: ${error.message}`);
+    return res.status(500).json({ ok: false, error: 'The palette could not be reset.' });
+  }
+});
+
 router.get('/admin/cache/status', async (req, res) => {
   try {
     const status = await cacheService.getCacheStatus();
