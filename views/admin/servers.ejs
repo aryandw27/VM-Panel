@@ -188,6 +188,8 @@
                const ownerLabel = v.owner_username || v.owner_name || 'Admin';
                const nodeLabel = v.node_name || 'Local Cluster / Node 1';
                const statusText = v.suspended ? 'suspended' : (v.status === 'running' ? 'active' : 'stopped');
+               const kindLabels = { 'qemu-dedicated': 'Dedicated VM', 'qemu-shared': 'Shared VM', docker: 'Docker', lxc: 'LXC', 'incus-container': 'Incus CT', 'incus-vm': 'Incus VM' };
+               const kindLabel = kindLabels[v.kind] || 'Dedicated VM';
           %>
             <tr class="server-row" 
                 data-search="<%= `${v.name} ${v.uuid} ${ownerLabel} ${nodeLabel} ${v.ssh_port} ${v.os_type || ''} ${v.status} ${v.suspended ? 'suspended' : ''}`.toLowerCase() %>"
@@ -226,7 +228,7 @@
                 <code class="mono font-bold" style="font-size:11px;color:var(--accent)">localhost:<%= v.ssh_port %></code>
               </td>
               <td style="white-space:nowrap">
-                <span class="pill pill-gray" style="font-size:10.5px">Standard</span>
+                <span class="pill <%= v.is_container ? 'pill-blue' : 'pill-gray' %>" style="font-size:10.5px" title="<%= v.kind %>"><%= kindLabel %></span>
               </td>
               <td class="text-center" style="white-space:nowrap;text-align:center">
                 <% if (v.suspended) { %>

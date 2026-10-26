@@ -52,12 +52,42 @@
     </div>
   </div>
 
+  <div class="card mb-4" style="background:var(--glass);border:1px solid var(--border);padding:18px">
+    <div class="flex-between mb-2">
+      <div style="font-weight:600;font-size:14px">Deployment Type <span style="color:var(--danger,#ef4444)">*</span></div>
+      <span class="muted text-sm">Choose how the workload runs on the target node</span>
+    </div>
+    <p class="muted text-sm" style="margin-bottom:14px">
+      Every type receives hard CPU and memory limits. Dedicated and shared VMs use QEMU with a real guest kernel;
+      containers share the host kernel and are lighter but not a security boundary.
+    </p>
+    <div class="grid grid-3" id="kindGrid" style="gap:12px">
+      <% for (const k of deploymentKinds) { %>
+        <% const av = (nodeAvailability[selectedNodeId] || {})[k.id] || { available: false, reason: 'Unavailable on this node' }; %>
+        <label class="kind-card <%= k.id === defaultKind ? 'active' : '' %> <%= av.available ? '' : 'kind-unavailable' %>"
+               data-kind="<%= k.id %>" data-available="<%= av.available ? '1' : '0' %>"
+               title="<%= av.reason || k.description %>" style="<%= av.available ? '' : 'opacity:0.55;' %>">
+          <input type="radio" name="kind" value="<%= k.id %>" <%= k.id === defaultKind ? 'checked' : '' %>
+                 <%= av.available ? '' : 'disabled' %> style="display:none" onchange="selectKind('<%= k.id %>')"/>
+          <div class="kind-head">
+            <span class="kind-name"><%= k.label %></span>
+            <span class="pill kind-state <%= av.available ? 'pill-green' : 'pill-yellow' %>" style="font-size:10px"><%= av.available ? 'Ready' : 'Not installed' %></span>
+          </div>
+          <div class="kind-summary"><%= k.summary %></div>
+          <div class="kind-meta mono"><%= k.runtime %><%= k.is_vm ? ' · VM' : ' · container' %></div>
+        </label>
+      <% } %>
+    </div>
+    <div id="kindWarning" class="form-hint" style="display:none;color:var(--warning,#f59e0b);margin-top:10px"></div>
+    <div id="nodeCapacityHint" class="muted text-sm" style="margin-top:8px"></div>
+  </div>
+
   <div class="grid" style="grid-template-columns: 1fr 340px; gap: 24px; align-items: start;">
     
     <div style="display:flex;flex-direction:column;gap:22px">
       
       
-      <div class="card" style="padding:22px">
+      <div class="card" style="padding:22px" id="vmOsSection">
         <div class="flex-between mb-3">
           <div class="card-title" style="margin:0;font-size:16px">1 · Operating System</div>
           <div class="os-filters">
@@ -102,6 +132,23 @@
       </div>
 
       
+      <div class="card" style="padding:22px;display:none" id="containerImageSection">
+        <div class="card-title" style="margin-bottom:18px;font-size:16px">1 · Container Image</div>
+        <p class="muted text-sm mb-3" id="containerImageHint">The image is pulled by the runtime on the target node. Images need a shell and a package manager to enable SSH.</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Image</label>
+            <select id="fImage" onchange="imageChanged()"></select>
+            <div class="form-hint" id="imageHint">Curated images are pre-configured for SSH access.</div>
+          </div>
+          <div class="form-group">
+            <label>Custom image reference</label>
+            <input id="fImageCustom" placeholder="e.g. ubuntu:24.04 or images:debian/12" oninput="customImageChanged()"/>
+            <div class="form-hint">Optional. Leave blank to use the selected image.</div>
+          </div>
+        </div>
+      </div>
+
       <div class="card" style="padding:22px">
         <div class="card-title" style="margin-bottom:18px;font-size:16px">2 · Hardware Sizing &amp; Resources</div>
         
@@ -137,7 +184,7 @@
         </div>
 
         
-        <div class="form-group">
+        <div class="form-group" id="diskField">
           <div class="flex-between mb-1">
             <label style="font-weight:600;font-size:13px">Disk Storage</label>
             <span id="diskValBadge" class="pill pill-yellow mono font-bold"><%= settings['vm.default_disk'] || '20G' %></span>
@@ -192,7 +239,7 @@
 
         <div class="form-group mt-3">
           <label>Compute Node</label>
-          <select id="fNode" onchange="updateSummary()">
+          <select id="fNode" onchange="nodeChanged()">
             <% for (const nd of (typeof nodes !== 'undefined' ? nodes : [])) { %>
               <% const isLocal = Number(nd.id) === 1; %>
               <% const isOnline = isLocal || (nd.wings && nd.wings.online); %>
@@ -258,17 +305,36 @@
         <div class="form-row mt-3">
           <label class="check" style="cursor:pointer">
             <input type="checkbox" id="fStartBoot" onchange="updateSummary()"/>
-            <span>Start VM automatically when panel boots</span>
+            <span>Start automatically when panel boots</span>
           </label>
-          <label class="check" style="cursor:pointer">
+          <label class="check" style="cursor:pointer" id="guiLabel">
             <input type="checkbox" id="fGui"/>
             <span>GUI Window Display (host display)</span>
           </label>
         </div>
+
+        <div class="form-group mt-3" id="accessSection" style="border-top:1px solid var(--border);padding-top:12px">
+          <label>Access methods</label>
+          <div class="flex flex-wrap" style="gap:14px">
+            <label class="check" style="cursor:pointer">
+              <input type="checkbox" id="fAccessSsh" checked onchange="updateSummary()"/>
+              <span>SSH (port mapping + credentials)</span>
+            </label>
+            <label class="check" style="cursor:pointer">
+              <input type="checkbox" id="fAccessTerminal" checked/>
+              <span>Web terminal</span>
+            </label>
+            <label class="check" style="cursor:pointer">
+              <input type="checkbox" id="fAccessPorts" checked onchange="updateSummary()"/>
+              <span>Published ports</span>
+            </label>
+          </div>
+          <div class="form-hint">Containers receive an SSH server inside the image; turn it off for terminal-only or port-only deployments.</div>
+        </div>
       </div>
 
       
-      <div class="card" style="padding:22px">
+      <div class="card" style="padding:22px" id="vmImageSection">
         <div class="card-title" style="margin-bottom:14px;font-size:16px">5 · Image Source</div>
         
         <div class="grid grid-2 mb-3" style="gap:10px">
@@ -313,6 +379,10 @@
 
         <div style="display:flex;flex-direction:column;gap:12px;font-size:13px">
           <div class="flex-between">
+            <span class="muted">Deployment Type</span>
+            <span class="font-bold" id="sumKind">Dedicated CPU VM</span>
+          </div>
+          <div class="flex-between">
             <span class="muted">OS &amp; Distro</span>
             <span class="font-bold" id="sumOs">Ubuntu 24.04</span>
           </div>
@@ -350,7 +420,7 @@
 
         <button class="btn btn-primary btn-block" style="padding:14px;font-size:15px;font-weight:700;letter-spacing:0.3px;display:flex;align-items:center;justify-content:center;gap:8px" id="btnCreate" onclick="createVm()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-          Deploy Virtual Machine
+          <span id="btnCreateLabel">Deploy Virtual Machine</span>
         </button>
         <div id="createProgress" class="muted text-sm text-center mt-2" style="display:none">
           Deploying VM and preparing storage...
@@ -431,10 +501,182 @@
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, var(--glass));
 }
+
+.kind-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 13px;
+  background: var(--glass);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.kind-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.kind-card.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--glass));
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.22);
+}
+.kind-card.kind-unavailable { cursor: not-allowed; }
+.kind-card.kind-unavailable:hover { transform: none; border-color: var(--border); }
+.kind-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kind-name { font-weight: 700; font-size: 13px; }
+.kind-summary { font-size: 11.5px; color: var(--text-dim); line-height: 1.35; }
+.kind-meta { font-size: 10.5px; color: var(--accent-2); margin-top: 2px; }
 </style>
 
 <script>
 let currentDistroUser = 'ubuntu';
+const KIND_DATA = <%- JSON.stringify(deploymentKinds).replace(/</g, '\\u003c') %>;
+const NODE_AVAILABILITY = <%- JSON.stringify(nodeAvailability).replace(/</g, '\\u003c') %>;
+const NODE_CAPACITY = <%- JSON.stringify(nodeCapacity || {}).replace(/</g, '\\u003c') %>;
+const KINDS_BY_ID = Object.fromEntries(KIND_DATA.map((k) => [k.id, k]));
+let currentKind = <%- JSON.stringify(defaultKind) %>;
+
+function currentKindDef() { return KINDS_BY_ID[currentKind] || KIND_DATA[0]; }
+
+function selectedNodeValue() {
+  const sel = document.getElementById('fNode');
+  return sel ? sel.value : '1';
+}
+
+function selectedImageValue() {
+  const custom = (document.getElementById('fImageCustom') || {}).value || '';
+  if (custom.trim()) return custom.trim();
+  const sel = document.getElementById('fImage');
+  return sel && sel.value ? sel.value : '';
+}
+
+function populateImages(def) {
+  const sel = document.getElementById('fImage');
+  if (!sel) return;
+  const previous = sel.value;
+  sel.innerHTML = '';
+  for (const image of (def.images || [])) {
+    const option = document.createElement('option');
+    option.value = image.value;
+    option.textContent = `${image.label} · ${image.value}`;
+    sel.appendChild(option);
+  }
+  if ((def.images || []).some((image) => image.value === previous)) sel.value = previous;
+  imageChanged();
+}
+
+function imageChanged() {
+  const custom = document.getElementById('fImageCustom');
+  if (custom) custom.value = '';
+  updateSummary();
+}
+
+function customImageChanged() { updateSummary(); }
+
+function applyKindUi(def) {
+  const container = !def.is_vm;
+  document.getElementById('vmOsSection').style.display = container ? 'none' : 'block';
+  document.getElementById('containerImageSection').style.display = container ? 'block' : 'none';
+  document.getElementById('vmImageSection').style.display = container ? 'none' : 'block';
+  document.getElementById('guiLabel').style.display = container ? 'none' : 'inline-flex';
+  document.getElementById('accessSection').style.display = container ? 'block' : 'none';
+  document.getElementById('diskField').style.display = container ? 'none' : 'block';
+  document.getElementById('sumKind').textContent = def.label;
+  const label = document.getElementById('btnCreateLabel');
+  if (label) label.textContent = container ? 'Deploy Container' : 'Deploy Virtual Machine';
+  populateImages(def);
+  updateSummary();
+}
+
+function selectKind(id, options = {}) {
+  const def = KINDS_BY_ID[id];
+  if (!def) return;
+  const availability = (NODE_AVAILABILITY[selectedNodeValue()] || {})[id];
+  if (availability && !availability.available && !options.force) {
+    if (!options.silent) VP.toast(availability.reason || `${def.label} is not available on this node`, 'error');
+    return;
+  }
+  currentKind = id;
+  document.querySelectorAll('.kind-card').forEach((card) => card.classList.toggle('active', card.dataset.kind === id));
+  const input = document.querySelector(`input[name="kind"][value="${id}"]`);
+  if (input) input.checked = true;
+  applyKindUi(def);
+  updateDeployButtonState();
+}
+
+function updateDeployButtonState() {
+  const btn = document.getElementById('btnCreate');
+  if (!btn) return;
+  const entry = (NODE_AVAILABILITY[selectedNodeValue()] || {})[currentKind];
+  const available = Boolean(entry && entry.available);
+  btn.disabled = !available;
+  btn.title = available ? '' : (entry && entry.reason) || 'Deployment type unavailable on this node';
+}
+
+function refreshNodeAvailability() {
+  const availability = NODE_AVAILABILITY[selectedNodeValue()] || {};
+  let anyAvailable = false;
+  document.querySelectorAll('.kind-card').forEach((card) => {
+    const id = card.dataset.kind;
+    const entry = availability[id] || { available: false, reason: 'Unavailable on this node' };
+    card.dataset.available = entry.available ? '1' : '0';
+    card.classList.toggle('kind-unavailable', !entry.available);
+    card.style.opacity = entry.available ? '' : '0.55';
+    const state = card.querySelector('.kind-state');
+    if (state) {
+      state.textContent = entry.available ? 'Ready' : 'Not installed';
+      state.classList.toggle('pill-green', entry.available);
+      state.classList.toggle('pill-yellow', !entry.available);
+    }
+    card.title = entry.reason || KINDS_BY_ID[id].description || '';
+    const radio = card.querySelector('input[name="kind"]');
+    if (radio) radio.disabled = !entry.available;
+    if (entry.available) anyAvailable = true;
+  });
+  const warning = document.getElementById('kindWarning');
+  if (warning) {
+    const currentEntry = availability[currentKind];
+    if (currentEntry && !currentEntry.available) {
+      warning.style.display = 'block';
+      warning.textContent = `${KINDS_BY_ID[currentKind].label} is not available on this node: ${currentEntry.reason}`;
+    } else {
+      warning.style.display = 'none';
+      warning.textContent = '';
+    }
+  }
+  if (!anyAvailable) {
+    const warning = document.getElementById('kindWarning');
+    if (warning) {
+      warning.style.display = 'block';
+      warning.textContent = 'No runtime is available on this node. Install QEMU, Docker, LXC or Incus, or choose another node.';
+    }
+    updateDeployButtonState();
+    return;
+  }
+  const currentEntry = availability[currentKind];
+  if (!currentEntry || !currentEntry.available) {
+    const next = KIND_DATA.find((kind) => availability[kind.id] && availability[kind.id].available);
+    if (next) selectKind(next.id, { force: true, silent: true });
+  }
+  updateDeployButtonState();
+}
+
+function updateCapacityHint() {
+  const el = document.getElementById('nodeCapacityHint');
+  if (!el) return;
+  const capacity = NODE_CAPACITY[selectedNodeValue()];
+  if (!capacity || !capacity.cores) {
+    el.textContent = 'Node capacity is not reported yet; container creation waits for Wings to register.';
+    return;
+  }
+  const allocated = capacity.allocated || { cpus: 0, memory_mb: 0 };
+  el.textContent = `${capacity.name}: ${capacity.cores} CPU cores / ${Math.round(capacity.memory_mb / 1024)} GB RAM · allocated ${allocated.cpus} vCPU / ${Math.round(allocated.memory_mb / 1024)} GB`;
+}
+
+function nodeChanged() {
+  refreshNodeAvailability();
+  updateCapacityHint();
+  updateSummary();
+}
 
 function slugify(text) {
   return String(text || '')
@@ -589,22 +831,26 @@ function fileSelected(input) {
 }
 
 function updateSummary() {
+  const def = currentKindDef();
+  const container = !def.is_vm;
   const osEl = document.querySelector('input[name="os"]:checked');
-  const osName = osEl ? osEl.value : 'Ubuntu 24.04';
+  const osName = container ? (selectedImageValue() || '—') : (osEl ? osEl.value : 'Ubuntu 24.04');
   const name = document.getElementById('fName').value || 'my-vm';
   const cpus = document.getElementById('fCpus').value || '2';
   const mem = document.getElementById('fMem').value || '2048';
   const disk = document.getElementById('fDisk').value || '20G';
   const user = document.getElementById('fUser').value || 'root';
-  const port = document.getElementById('fPort').value || 'Auto (25501-25600)';
+  const sshEnabled = document.getElementById('fAccessSsh') ? document.getElementById('fAccessSsh').checked : true;
+  const port = sshEnabled ? (document.getElementById('fPort').value || 'Auto (25501-25600)') : 'Disabled';
   const ownerSel = document.getElementById('fOwner');
   const owner = ownerSel ? ownerSel.options[ownerSel.selectedIndex].text.split('·')[0].trim() : '';
 
+  document.getElementById('sumKind').textContent = def.label;
   document.getElementById('sumOs').textContent = osName;
   document.getElementById('sumName').textContent = slugify(name);
   document.getElementById('sumCpu').textContent = cpus + (cpus === '1' ? ' Core' : ' Cores');
   document.getElementById('sumMem').textContent = mem + ' MB (' + (parseInt(mem,10)/1024).toFixed(1) + ' GB)';
-  document.getElementById('sumDisk').textContent = disk.toUpperCase();
+  document.getElementById('sumDisk').textContent = container ? '—' : disk.toUpperCase();
   document.getElementById('sumUser').textContent = user;
   document.getElementById('sumPort').textContent = port ? port : 'Auto';
   document.getElementById('sumOwner').textContent = owner;
@@ -617,7 +863,16 @@ async function createVm() {
 
   if (!slug) {
     nameInput.focus();
-    return VP.toast('Please enter a valid VM name', 'error');
+    return VP.toast('Please enter a valid deployment name', 'error');
+  }
+  const definition = currentKindDef();
+  if (!definition) return VP.toast('Choose a deployment type', 'error');
+  const availability = (NODE_AVAILABILITY[selectedNodeValue()] || {})[currentKind];
+  if (availability && !availability.available) {
+    return VP.toast(availability.reason || `${definition.label} is not available on this node`, 'error');
+  }
+  if (!definition.is_vm && !selectedImageValue()) {
+    return VP.toast('Choose a container image', 'error');
   }
 
   const btn = document.getElementById('btnCreate');
@@ -627,6 +882,11 @@ async function createVm() {
   prog.style.display = 'block';
 
   const fd = new FormData();
+  fd.append('kind', currentKind);
+  if (!definition.is_vm) fd.append('container_image', selectedImageValue());
+  fd.append('access_ssh', document.getElementById('fAccessSsh').checked ? '1' : '0');
+  fd.append('access_terminal', document.getElementById('fAccessTerminal').checked ? '1' : '0');
+  fd.append('access_ports', document.getElementById('fAccessPorts').checked ? '1' : '0');
   fd.append('os', (document.querySelector('input[name="os"]:checked') || {}).value);
   fd.append('name', slug);
   fd.append('hostname', document.getElementById('fHost').value || slug);
@@ -664,12 +924,13 @@ async function createVm() {
     const r = await fetch('/admin/servers/create', { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Failed to create server');
-    VP.toast('VM Created successfully! SSH Port: ' + d.vm.ssh_port, 'success');
+    VP.toast(`${definition.is_vm ? 'VM' : 'Container'} created successfully${definition.is_vm || document.getElementById('fAccessSsh').checked ? '! SSH port: ' + d.vm.ssh_port : '!'}`, 'success');
     setTimeout(() => { location.href = '/admin/servers/' + d.vm.id; }, 900);
   } catch (e) {
     VP.toast(VP.errorMessage(e), 'error');
     btn.disabled = false;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg> Deploy Virtual Machine';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg> <span id="btnCreateLabel">Deploy Virtual Machine</span>';
+    applyKindUi(definition);
     prog.style.display = 'none';
   }
 }
@@ -681,5 +942,8 @@ if (targetOwner && document.getElementById('fOwner')) {
   document.getElementById('fOwner').value = targetOwner;
 }
 genPassword();
+refreshNodeAvailability();
+updateCapacityHint();
+selectKind(currentKind, { force: true, silent: true });
 updateSummary();
 </script>

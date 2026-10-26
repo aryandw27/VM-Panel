@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const {
   getVmDir,
   getImagesDir,
@@ -14,6 +14,9 @@ const {
 } = require('../lib/config');
 const logger = require('../lib/logger');
 const client = require('../websocket/client');
+const runtimes = require('./runtimes');
+const qemuLimits = require('./runtimes/qemuLimits');
+const capabilities = require('./runtimes/capabilities');
 
 const QEMU_BIN = 'qemu-system-x86_64';
 const CACHE_TTL_MS = 60000;
@@ -124,6 +127,14 @@ class VMService {
   }
 
   isRunning(vmId) {
+    const state = this.loadState(vmId);
+    if (state && runtimes.driverForKind(state.kind)) {
+      try {
+        return state.status === 'running' && runtimes.driverForKind(state.kind).status(state) === 'running';
+      } catch (_) {
+        return state.status === 'running';
+      }
+    }
     const pid = this.pidOf(vmId);
     if (!pid) return false;
     try {
@@ -223,8 +234,13 @@ class VMService {
     const dir = this.getVmPath(vm.id);
     const kvm = hasKvm();
     const forwards = Array.isArray(vm.port_forwards) ? vm.port_forwards : [];
+    let access = vm.access;
+    if (typeof access === 'string') {
+      try { access = JSON.parse(access); } catch (_) { access = null; }
+    }
+    const sshEnabled = !access || access.ssh !== false;
     const hostForwards = [
-      `hostfwd=tcp::${vm.ssh_port}-:22`,
+      ...(sshEnabled && vm.ssh_port ? [`hostfwd=tcp::${vm.ssh_port}-:22`] : []),
       ...forwards
         .filter((forward) => Number(forward.host) > 0 && Number(forward.guest) > 0)
         .map((forward) => `hostfwd=tcp::${Number(forward.host)}-:${Number(forward.guest)}`),
@@ -263,6 +279,49 @@ class VMService {
     const vmPath = this.getVmPath(vmId);
     if (fs.existsSync(vmPath)) throw fail(`VM ${vmId} already exists on this node`);
 
+    const kind = runtimes.definitions.normalizeKind(payload.kind);
+    const driver = runtimes.driverForKind(kind);
+    if (driver) {
+      fs.mkdirSync(vmPath, { recursive: true });
+      const container = {
+        id: vmId,
+        uuid: payload.uuid || `vm-${vmId}`,
+        name: payload.name || `vm-${vmId}`,
+        hostname: payload.hostname || payload.name || `vm-${vmId}`,
+        kind,
+        runtime: runtimes.definitions.definitionFor(kind).runtime,
+        image: payload.image || (runtimes.definitions.definitionFor(kind).runtime === 'docker' ? 'ubuntu:24.04' : 'images:ubuntu/24.04'),
+        username: payload.username || 'root',
+        password: payload.password || '',
+        memory: parseInt(payload.memory, 10) || 512,
+        cpus: parseInt(payload.cpus, 10) || 1,
+        disk_size: String(payload.disk_size || '20G').toUpperCase(),
+        ssh_port: parseInt(payload.ssh_port, 10) || 0,
+        port_forwards: Array.isArray(payload.port_forwards) ? payload.port_forwards : [],
+        access: payload.access || { ssh: true, terminal: true, ports: true },
+        limits: payload.limits || {},
+        runtime_ref: `vpanel-${vmId}`,
+        status: 'provisioning',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      this.saveState(container);
+      try {
+        const result = driver.create(container);
+        container.status = result.status || 'running';
+        container.runtime_ref = result.runtime_ref || container.runtime_ref;
+        container.updated_at = new Date().toISOString();
+        this.saveState(container);
+        client.sendEvent('vm_created', { vm_id: vmId, kind, status: container.status });
+        return { id: vmId, dir: vmPath, status: container.status, runtime_ref: container.runtime_ref, kind };
+      } catch (error) {
+        container.status = 'failed';
+        container.updated_at = new Date().toISOString();
+        this.saveState(container);
+        throw error;
+      }
+    }
+
     const memory = parseInt(payload.memory, 10) || 2048;
     const cpus = parseInt(payload.cpus, 10) || 2;
     const diskSize = String(payload.disk_size || '20G').toUpperCase();
@@ -280,6 +339,9 @@ class VMService {
         uuid: payload.uuid || `vm-${vmId}`,
         name: payload.name || `vm-${vmId}`,
         hostname: payload.hostname || payload.name || `vm-${vmId}`,
+        kind: payload.kind || 'qemu-dedicated',
+        access: payload.access || { ssh: true, terminal: true, ports: true },
+        limits: payload.limits || {},
         username: payload.username || getSshUser(),
         password: payload.password || '',
         os_type: payload.os_type || '',
@@ -319,7 +381,19 @@ class VMService {
     const vmId = String(payload.vm_id || '').trim();
     const vm = this.loadState(vmId);
     if (!vm) throw fail(`VM ${vmId} does not exist on this node`);
-    if (this.isRunning(vmId)) return { id: vmId, status: 'running', noop: true };
+    if (this.isRunning(vmId)) return { id: vmId, status: 'running', noop: true, runtime_ref: vm.runtime_ref };
+
+    const runtimeDriver = runtimes.driverForKind(vm.kind);
+    if (runtimeDriver) {
+      const result = runtimeDriver.start(vm);
+      vm.status = 'running';
+      vm.runtime_ref = result.runtime_ref || vm.runtime_ref || `vpanel-${vmId}`;
+      vm.updated_at = new Date().toISOString();
+      this.saveState(vm);
+      client.sendEvent('vm_started', { vm_id: vmId, kind: vm.kind });
+      return { id: vmId, status: 'running', runtime_ref: vm.runtime_ref };
+    }
+
     if (!fs.existsSync(this.getDiskPath(vmId))) throw fail(`VM ${vmId} has no disk image`);
 
     try {
@@ -327,7 +401,17 @@ class VMService {
     } catch (_) {}
 
     logger.info(`Starting VM ${vmId}`);
-    run(QEMU_BIN, this.qemuArgs(vm), { timeout: 60000 });
+    const qemuArgs = this.qemuArgs(vm);
+    if (qemuLimits.systemdAvailable()) {
+      const daemonizeIndex = qemuArgs.indexOf('-daemonize');
+      if (daemonizeIndex >= 0) qemuArgs.splice(daemonizeIndex, 1);
+      const launch = qemuLimits.wrap(vm, [QEMU_BIN, ...qemuArgs]);
+      const child = spawn(launch.command, launch.args, { detached: true, stdio: 'ignore' });
+      child.unref();
+    } else {
+      logger.warn('systemd cgroups are unavailable; starting QEMU without a hard CPU/memory ceiling');
+      run(QEMU_BIN, qemuArgs, { timeout: 60000 });
+    }
 
     const deadline = Date.now() + 8000;
     while (Date.now() < deadline && !this.isRunning(vmId)) {
@@ -350,6 +434,22 @@ class VMService {
     const vmId = String(payload.vm_id || '').trim();
     const vm = this.loadState(vmId);
     if (!vm) throw fail(`VM ${vmId} does not exist on this node`);
+
+    const runtimeDriver = runtimes.driverForKind(vm.kind);
+    if (runtimeDriver) {
+      if (!this.isRunning(vmId)) {
+        vm.status = 'stopped';
+        vm.updated_at = new Date().toISOString();
+        this.saveState(vm);
+        return { id: vmId, status: 'stopped', noop: true, runtime_ref: vm.runtime_ref };
+      }
+      runtimeDriver.stop(vm, { force: Boolean(payload.force) });
+      vm.status = 'stopped';
+      vm.updated_at = new Date().toISOString();
+      this.saveState(vm);
+      client.sendEvent('vm_stopped', { vm_id: vmId, kind: vm.kind });
+      return { id: vmId, status: 'stopped', runtime_ref: vm.runtime_ref };
+    }
 
     const pid = this.pidOf(vmId);
     if (!pid || !this.isRunning(vmId)) {
@@ -388,6 +488,17 @@ class VMService {
   deleteVm(payload) {
     const vmId = String(payload.vm_id || '').trim();
     const vmPath = this.getVmPath(vmId);
+    const state = this.loadState(vmId);
+    const runtimeDriver = state ? runtimes.driverForKind(state.kind) : null;
+    if (runtimeDriver) {
+      try {
+        if (this.isRunning(vmId)) runtimeDriver.stop(state, { force: true });
+      } catch (_) {}
+      try { runtimeDriver.remove(state); } catch (_) {}
+      fs.rmSync(vmPath, { recursive: true, force: true });
+      client.sendEvent('vm_deleted', { vm_id: vmId, kind: state.kind });
+      return { id: vmId, deleted: true, kind: state.kind };
+    }
     if (this.isRunning(vmId)) this.stopVm({ vm_id: vmId, force: true });
     fs.rmSync(vmPath, { recursive: true, force: true });
     client.sendEvent('vm_deleted', { vm_id: vmId });
@@ -398,6 +509,22 @@ class VMService {
     const vmId = String(payload.vm_id || '').trim();
     const vm = this.loadState(vmId);
     if (!vm) throw fail(`VM ${vmId} does not exist on this node`);
+
+    const runtimeDriver = runtimes.driverForKind(vm.kind);
+    if (runtimeDriver) {
+      const observed = runtimeDriver.stats(vm);
+      return {
+        id: vmId,
+        name: vm.name,
+        kind: vm.kind,
+        status: observed.status,
+        cpu: observed.cpu_percent || 0,
+        mem: Math.round((observed.memory_bytes || 0) / 1024 / 1024),
+        memory_mb: Math.round((observed.memory_bytes || 0) / 1024 / 1024),
+        memory_alloc: vm.memory,
+        disk_size: vm.disk_size,
+      };
+    }
 
     const pid = this.pidOf(vmId);
     let cpuPercent = 0;
@@ -616,6 +743,7 @@ class VMService {
     client.onCommand('vm_stop', (payload) => this.stopVm(payload));
     client.onCommand('vm_delete', (payload) => this.deleteVm(payload));
     client.onCommand('vm_stats', (payload) => this.vmStats(payload));
+    client.onCommand('runtime_caps', () => capabilities.detectCached({ force: true }));
     client.onCommand('node_stats', () => this.nodeStats());
     client.onCommand('node_info', () => ({ node_id: getNodeId(), vms: this.listVms() }));
     logger.info('Registered Wings command handlers');

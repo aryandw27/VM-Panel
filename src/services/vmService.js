@@ -12,6 +12,12 @@ const logger = require('../lib/logger');
 const { logActivity } = require('./activityService');
 const { createVmOperationCoordinator } = require('./vmOperationCoordinator');
 const wingsGateway = require('./wingsGateway');
+const runtimes = require('./runtimes');
+const capacityService = require('./capacityService');
+const {
+  isKnownKind, isContainerKind, definitionFor, isValidImage, imageEntry,
+} = require('./runtimes/definitions');
+const { normalizeAccess } = require('./runtimes/util');
 
 const VM_DIR = config.vmDir;
 const RUNNING_PREFIX = 'qemu-system';
@@ -270,8 +276,9 @@ function buildQemuArgs(vm) {
   const kvmAvailable = hasKvm();
   const accelMode = kvmAvailable ? 'kvm:tcg' : 'tcg';
   const cpuType = kvmAvailable ? 'host' : 'qemu64';
+  const access = parsedAccess(vm);
   const hostForwards = [
-    `hostfwd=tcp::${vm.ssh_port}-:22`,
+    ...(access.ssh && vm.ssh_port ? [`hostfwd=tcp::${vm.ssh_port}-:22`] : []),
     ...(vm.agent_port ? [`hostfwd=tcp::${vm.agent_port}-:9090`] : []),
     ...fwds.map((forward) => `hostfwd=tcp::${forward.host}-:${forward.guest}`),
   ];
@@ -416,18 +423,45 @@ function isRemoteVm(vm) {
   return Boolean(vm && Number(vm.node_id) > 1);
 }
 
+function isContainerVm(vm) {
+  return Boolean(vm) && isContainerKind(vm.kind);
+}
+
+function parsedAccess(vm) {
+  let access = vm && vm.access;
+  if (typeof access === 'string') {
+    try { access = JSON.parse(access); } catch (_) { access = null; }
+  }
+  const source = access && typeof access === 'object' ? access : {};
+  return {
+    ssh: source.ssh !== undefined ? Boolean(source.ssh) : true,
+    terminal: source.terminal !== undefined ? Boolean(source.terminal) : true,
+    ports: source.ports !== undefined ? Boolean(source.ports) : true,
+  };
+}
+
+function parsedLimits(vm) {
+  let limits = vm && vm.limits;
+  if (typeof limits === 'string') {
+    try { limits = JSON.parse(limits); } catch (_) { limits = null; }
+  }
+  return limits && typeof limits === 'object' ? limits : null;
+}
+
 async function getRemoteNode(nodeId) {
   if (!nodeId || Number(nodeId) === 1) return null;
   return collections.nodes.findOne({ id: Number(nodeId) });
 }
 
 function isRunning(vm) {
+  if (isContainerVm(vm)) return vm.status === 'running';
   if (isRemoteVm(vm)) return vm.status === 'running';
   return Boolean(qemuProcess(vm));
 }
 
 function statusOf(vm) {
   if (vm && vm.suspended) return 'suspended';
+  if (isContainerVm(vm)) return vm.status === 'running' ? 'running' : (vm.status || 'stopped');
   if (isRemoteVm(vm)) return vm.status || 'stopped';
   return isRunning(vm) ? 'running' : 'stopped';
 }
@@ -454,16 +488,24 @@ function serializeVm(row) {
   let forwards = [];
   try { forwards = JSON.parse(row.port_forwards || '[]'); } catch (_) {}
   const rawUuid = row.uuid || `vm-${String(row.id).padStart(8, '0')}`;
+  const kind = isKnownKind(row.kind) ? row.kind : 'qemu-dedicated';
   const out = {
     ...row,
     uuid: rawUuid,
     uuidShort: rawUuid.slice(0, 8),
+    kind,
+    runtime: row.runtime || definitionFor(kind).runtime,
+    image: row.image || '',
+    access: parsedAccess(row),
+    limits: parsedLimits(row),
+    is_container: isContainerKind(kind),
     port_forwards: forwards,
     gui_mode: !!row.gui_mode,
     start_on_boot: !!row.start_on_boot,
     suspended: !!row.suspended,
     status: statusOf(row),
     remote: isRemoteVm(row),
+    runtime_ref: row.runtime_ref || '',
     dir: isRemoteVm(row) ? (row.remote_dir || '') : vmDir(row),
   };
   delete out.agent_token;
@@ -630,6 +672,21 @@ async function create({ user, data }) {
   const exists = await collections.vms.findOne({ name: vmName, owner_id: user.id });
   if (exists) throw new Error(`VM "${vmName}" already exists`);
 
+  const kind = data.kind ? String(data.kind).trim() : 'qemu-dedicated';
+  if (!isKnownKind(kind)) {
+    throw Object.assign(new Error(`Unknown deployment type "${kind}".`), { category: 'invalid_request' });
+  }
+  const kindDefinition = definitionFor(kind);
+  const containerKind = isContainerKind(kind);
+  const defaultImage = kindDefinition.runtime === 'docker' ? 'ubuntu:24.04' : 'images:ubuntu/24.04';
+  const image = containerKind ? String(data.image || defaultImage).trim() : '';
+  if (containerKind && !isValidImage(kind, image)) {
+    throw Object.assign(new Error('Choose a valid container image reference.'), { category: 'invalid_request' });
+  }
+  if (containerKind && data.upload_image) {
+    throw Object.assign(new Error('Container deployments pull an image by reference; disk-image uploads are only for QEMU VMs.'), { category: 'invalid_request' });
+  }
+
   const nodeId = parseInt(data.node_id, 10) || 1;
   const remoteNode = await getRemoteNode(nodeId);
   if (nodeId !== 1 && !remoteNode) throw new Error('The selected node does not exist.');
@@ -642,8 +699,20 @@ async function create({ user, data }) {
     throw new Error(`Node "${remoteNode.name}" is offline. Start the Wings service on that VPS before creating VMs there.`);
   }
 
+  if (containerKind) {
+    const available = isRemote
+      ? runtimes.capabilities.normalizeIncoming(remoteNode.runtime_capabilities)
+      : runtimes.capabilities.detectCached();
+    runtimes.capabilities.assertKindAvailable(kind, available, {
+      nodeName: isRemote ? (remoteNode.name || `node ${nodeId}`) : 'the panel host',
+    });
+  }
+
   const hostname = String(data.hostname || vmName).replace(/\s+/g, '-');
-  const username = String(data.username || osEntry[4] || 'root').toLowerCase();
+  const imageUser = containerKind
+    ? ((imageEntry(kind, image) || {}).username || (kindDefinition.runtime === 'docker' ? 'root' : 'ubuntu'))
+    : '';
+  const username = String(data.username || imageUser || osEntry[4] || 'root').toLowerCase();
   const password = String(data.password || 'vpanel' + Math.random().toString(36).slice(2, 8));
   const diskSize = String(data.disk_size || settings.get('vm.default_disk') || '20G').toUpperCase();
   const memory = parseInt(data.memory || settings.get('vm.default_memory') || '2048', 10);
@@ -651,22 +720,40 @@ async function create({ user, data }) {
   const sshPort = data.ssh_port ? parseInt(data.ssh_port, 10) : await allocPort();
   if (isNaN(sshPort) || sshPort < 23 || sshPort > 65535) throw new Error('Invalid SSH port');
   if (!isRemote && inUsePort(sshPort)) throw new Error(`Port ${sshPort} is already in use`);
-  const vncPort = await allocVncPort();
-  const agentPort = await allocAgentPort();
+  const vncPort = containerKind ? 0 : await allocVncPort();
+  const agentPort = containerKind ? 0 : await allocAgentPort();
   const agentToken = genAgentToken();
   const guiMode = data.gui_mode === true || data.gui_mode === '1' || data.gui_mode === 'true';
   const forwards = normalizePortForwards(Array.isArray(data.port_forwards) ? data.port_forwards : []);
+  const access = normalizeAccess(data.access && typeof data.access === 'object' ? data.access : {
+    ssh: data.access_ssh, terminal: data.access_terminal, ports: data.access_ports,
+  });
+  const limits = {
+    cpu_quota_percent: Math.round(cpus * 100),
+    memory_max_mb: memory,
+    pids_limit: 512,
+  };
+
+  if (process.env.CAPACITY_ENFORCEMENT !== '0') {
+    await capacityService.assertCapacity({ nodeId, kind, cpus, memory, disk_size: diskSize });
+  }
 
   const id = await getNextId('vms');
   const dir = path.join(VM_DIR, String(id));
-  if (!isRemote) fs.mkdirSync(dir, { recursive: true });
+  if (!isRemote && !containerKind) fs.mkdirSync(dir, { recursive: true });
 
   const vm = {
     id,
     uuid: uuidv4(),
     owner_id: user.id,
     name: vmName,
-    os_type: osEntry[1] || '',
+    kind,
+    runtime: kindDefinition.runtime,
+    image,
+    access: JSON.stringify(access),
+    limits: JSON.stringify(limits),
+    runtime_ref: '',
+    os_type: containerKind ? image : (osEntry[1] || ''),
     codename: osEntry[2] || '',
     img_url: osEntry[3] || '',
     hostname,
@@ -681,8 +768,8 @@ async function create({ user, data }) {
     agent_token: agentToken,
     gui_mode: guiMode ? 1 : 0,
     port_forwards: JSON.stringify(forwards),
-    img_file: path.join(dir, 'disk.qcow2'),
-    seed_file: path.join(dir, 'seed.iso'),
+    img_file: containerKind ? '' : path.join(dir, 'disk.qcow2'),
+    seed_file: containerKind ? '' : path.join(dir, 'seed.iso'),
     start_on_boot: data.start_on_boot ? 1 : 0,
     startup_command: data.startup_command || '',
     status: 'stopped',
@@ -719,11 +806,17 @@ async function create({ user, data }) {
         port_forwards: forwards,
         gui_mode: guiMode ? 1 : 0,
         start_on_boot: vm.start_on_boot,
-      }, 15 * 60 * 1000);
+        kind,
+        runtime: kindDefinition.runtime,
+        image,
+        access,
+        limits,
+      }, (containerKind ? 25 : 15) * 60 * 1000);
 
       await collections.vms.updateOne({ id }, {
         $set: {
-          status: 'stopped',
+          status: (result && result.status) || 'stopped',
+          runtime_ref: (result && (result.runtime_ref || result.name)) || '',
           remote_dir: (result && result.dir) || vm.remote_dir,
           img_file: (result && result.disk_path) || null,
           seed_file: (result && result.seed_path) || null,
@@ -742,6 +835,31 @@ async function create({ user, data }) {
 
   await validateHostForwards(vm, forwards);
   await collections.vms.insertOne(vm);
+
+  if (containerKind) {
+    await setDbStatus(id, 'provisioning');
+    try {
+      const result = await runtimes.create(vm);
+      await collections.vms.updateOne({ id }, {
+        $set: {
+          status: result.status || 'running',
+          runtime_ref: result.runtime_ref || `vpanel-${id}`,
+          updated_at: now(),
+        },
+      });
+    } catch (error) {
+      if (error.runtimeCleaned) {
+        // No workload exists, so do not leave a phantom row consuming capacity.
+        await collections.vms.deleteOne({ id }).catch(() => {});
+      } else {
+        await collections.vms.updateOne({ id }, { $set: { status: 'failed', updated_at: now() } }).catch(() => {});
+      }
+      await logActivity({ user_id: user.id, vm_id: id, event: 'vm:create_failed', details: { name: vmName, kind, error: error.message } });
+      throw error;
+    }
+    await logActivity({ user_id: user.id, vm_id: id, event: 'vm:create', details: { name: vmName, kind, image, node_id: nodeId } });
+    return getVm(id);
+  }
 
   const img = vm.img_file;
   if (!fs.existsSync(img)) {
@@ -818,7 +936,59 @@ async function stopRemoteVm(vm, { user = null, force = false } = {}) {
   return { ok: true, state: 'stopped' };
 }
 
+function containerTarget(vm) {
+  return vm.runtime_ref || `vpanel-${Number(vm.id)}`;
+}
+
+function containerActualRunning(vm) {
+  if (isRemoteVm(vm)) return vm.status === 'running';
+  try {
+    return runtimes.status({ ...vm, runtime_ref: containerTarget(vm) }) === 'running';
+  } catch (_) {
+    return vm.status === 'running';
+  }
+}
+
+async function startContainerVm(vm, { user = null } = {}) {
+  if (isRemoteVm(vm)) return startRemoteVm(vm, { user });
+  if (containerActualRunning(vm)) {
+    if (vm.status !== 'running') await setDbStatus(vm.id, 'running');
+    return { ok: true, noop: true, state: 'running', message: 'already running' };
+  }
+  if (vm.suspended) throw Object.assign(new Error('This deployment is suspended and cannot be started.'), { category: 'vm_suspended' });
+  await setDbStatus(vm.id, 'starting');
+  try {
+    await runtimes.start({ ...vm, runtime_ref: containerTarget(vm) });
+  } catch (error) {
+    await setDbStatus(vm.id, 'stopped').catch(() => {});
+    throw Object.assign(new Error(`Could not start this deployment: ${error.message}`), { category: error.category || 'runtime_start_failed' });
+  }
+  await setDbStatus(vm.id, 'running');
+  await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:start', details: { kind: vm.kind } });
+  return { ok: true, state: 'running' };
+}
+
+async function stopContainerVm(vm, { user = null, force = false } = {}) {
+  if (isRemoteVm(vm)) return stopRemoteVm(vm, { user, force });
+  if (!containerActualRunning(vm)) {
+    await setDbStatus(vm.id, 'stopped');
+    return { ok: true, noop: true, state: 'stopped', message: 'not running' };
+  }
+  try {
+    await runtimes.stop({ ...vm, runtime_ref: containerTarget(vm) }, { force });
+  } catch (error) {
+    throw Object.assign(
+      new Error('The runtime stop could not be confirmed; inspect the deployment before retrying.'),
+      { category: 'operation_uncertain' },
+    );
+  }
+  await setDbStatus(vm.id, 'stopped');
+  await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: force ? 'vm:kill' : 'vm:stop', details: { kind: vm.kind } });
+  return { ok: true, state: 'stopped' };
+}
+
 async function startUnlocked(vm, { user = null } = {}) {
+  if (isContainerVm(vm)) return startContainerVm(vm, { user });
   if (isRemoteVm(vm)) return startRemoteVm(vm, { user });
   if (isRunning(vm)) return { ok: true, noop: true, state: 'running', message: 'already running' };
   if (vm.suspended) throw Object.assign(new Error('This VM is suspended and cannot be started.'), { category: 'vm_suspended' });
@@ -851,10 +1021,23 @@ async function startUnlocked(vm, { user = null } = {}) {
   const logFile = fs.openSync(qemuLogPath, 'a');
   const qemuLogOffset = fs.fstatSync(logFile).size;
   const args = buildQemuArgs(vm);
-  logger.info(`[vm] starting VM ${Number(vm.id)} with QEMU`);
+  // Hard CPU/RAM caps require a foreground QEMU inside a transient systemd scope;
+  // -daemonize would detach the process from the scope and silently drop the limits.
+  const useCgroups = runtimes.qemuLimits.systemdAvailable();
+  if (useCgroups) {
+    const daemonizeIndex = args.indexOf('-daemonize');
+    if (daemonizeIndex >= 0) args.splice(daemonizeIndex, 1);
+  }
+  const launch = useCgroups
+    ? runtimes.qemuLimits.wrap(vm, ['qemu-system-x86_64', ...args])
+    : { command: 'qemu-system-x86_64', args, wrapped: false };
+  logger.info(`[vm] starting VM ${Number(vm.id)} with QEMU${launch.wrapped ? ' (hard cgroup limits active)' : ''}`);
+  if (!launch.wrapped) {
+    logger.warn('[vm] systemd cgroups are unavailable on this host; QEMU is starting without a hard CPU/memory ceiling');
+  }
   let spawnError = null;
   let exited = false;
-  const child = spawn('qemu-system-x86_64', args, { stdio: ['ignore', logFile, logFile] });
+  const child = spawn(launch.command, launch.args, { stdio: ['ignore', logFile, logFile] });
   const closeLog = () => { try { fs.closeSync(logFile); } catch (_) {} };
   child.once('error', (error) => { spawnError = error; closeLog(); });
   child.once('exit', () => { exited = true; closeLog(); setDbStatus(vm.id, 'stopped').catch(() => {}); });
@@ -888,6 +1071,7 @@ async function startUnlocked(vm, { user = null } = {}) {
 }
 
 async function stopUnlocked(vm, { user = null, force = false } = {}) {
+  if (isContainerVm(vm)) return stopContainerVm(vm, { user, force });
   if (isRemoteVm(vm)) return stopRemoteVm(vm, { user, force });
   const identity = qemuProcess(vm);
   if (!identity) {
@@ -949,10 +1133,18 @@ async function removeUnlocked(vm, user) {
   }
 
   if (isRunning(vm)) await stopUnlocked(vm, { user, force: true });
-  try {
-    await fs.promises.rm(vmDir(vm), { recursive: true, force: true });
-  } catch (e) {
-    logger.warn('[vm] cleanup error: ' + e.message);
+  if (isContainerVm(vm)) {
+    try {
+      await runtimes.remove({ ...vm, runtime_ref: containerTarget(vm) });
+    } catch (error) {
+      logger.warn('[vm] runtime cleanup error: ' + error.message);
+    }
+  } else {
+    try {
+      await fs.promises.rm(vmDir(vm), { recursive: true, force: true });
+    } catch (e) {
+      logger.warn('[vm] cleanup error: ' + e.message);
+    }
   }
   await collections.backups.deleteMany({ vm_id: Number(vm.id) });
   await collections.schedules.deleteMany({ vm_id: Number(vm.id) });
@@ -990,11 +1182,21 @@ async function updateUnlocked(vm, data, user) {
       else $set[f] = data[f];
     }
   }
+  if (isContainerVm(vm) && (data.cpus !== undefined || data.memory !== undefined)) {
+    if (isRemoteVm(vm)) throw new Error('Resize this deployment on the node that hosts it.');
+    const driver = runtimes.driverForKind(vm.kind);
+    if (!driver || typeof driver.updateLimits !== 'function') {
+      throw new Error('This runtime cannot change resources in place; create a new deployment instead.');
+    }
+    // Apply the runtime limit first so a failed runtime update never leaves the
+    // database promising resources the workload does not have.
+    await driver.updateLimits({ ...vm, ...data, runtime_ref: containerTarget(vm) });
+  }
   if (Object.keys($set).length) {
     $set.updated_at = now();
     await collections.vms.updateOne({ id: Number(vm.id) }, { $set });
   }
-  const needSeed = !isRemoteVm(vm) && ['hostname', 'username', 'password'].some((f) => data[f] !== undefined);
+  const needSeed = !isRemoteVm(vm) && !isContainerVm(vm) && ['hostname', 'username', 'password'].some((f) => data[f] !== undefined);
   if (needSeed) writeSeed(vm);
   await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:update', details: data });
   return getVm(vm.id);
@@ -1013,6 +1215,7 @@ async function transferOwner(vm, newOwnerId, actor) {
 }
 
 async function resizeDiskUnlocked(vm, newSize, user) {
+  if (isContainerVm(vm)) throw new Error('Disk resizing is not supported for container deployments.');
   if (isRunning(vm)) throw new Error('Cannot resize disk while VM is running. Stop the VM first.');
   if (!/^[0-9]+[GM]$/i.test(newSize)) throw new Error('Disk size must be like 50G or 512M');
   await runBoundedProcess('qemu-img', ['resize', vm.img_file, newSize], 120000);
@@ -1043,11 +1246,15 @@ async function restoreDiskUnderVmLock(vm, { user = null, restore } = {}) {
 }
 
 function usage() {
+  const runtimesUsage = runtimes.localAvailability();
   return {
     qemu: hasBin('qemu-system-x86_64'),
     cloudLocalds: hasBin('cloud-localds'),
     wget: hasBin('wget'),
     kvm: hasBin('qemu-kvm') || hasBin('/usr/libexec/qemu-kvm'),
+    docker: runtimesUsage.runtimes.docker.available,
+    lxc: runtimesUsage.runtimes.lxc.available,
+    incus: runtimesUsage.runtimes.incus.available,
   };
 }
 
@@ -1076,6 +1283,27 @@ function totalDiskUsage() {
   } catch (_) { return 0; }
 }
 
+async function syncContainerStates() {
+  const kinds = runtimes.definitions.KIND_ORDER.filter((kind) => isContainerKind(kind));
+  const rows = await collections.vms.find({ kind: { $in: kinds } }).toArray();
+  let changed = 0;
+  for (const row of rows) {
+    if (isRemoteVm(row)) continue;
+    if (row.status === 'failed' || row.status === 'provisioning') continue;
+    let actual;
+    try {
+      actual = runtimes.status({ ...row, runtime_ref: containerTarget(row) }) === 'running' ? 'running' : 'stopped';
+    } catch (_) {
+      continue;
+    }
+    if (row.status !== actual) {
+      await collections.vms.updateOne({ id: Number(row.id) }, { $set: { status: actual, updated_at: now() } });
+      changed += 1;
+    }
+  }
+  return changed;
+}
+
 async function startOnBootAll() {
   const rawVms = await collections.vms.find({ start_on_boot: 1 }).toArray();
   const vms = rawVms.map(serializeVm);
@@ -1102,7 +1330,50 @@ function diskActualUsage(vm) {
   return 0;
 }
 
+function containerLiveStats(vm) {
+  const running = isRunning(vm);
+  let observed = { cpu_percent: 0, memory_bytes: 0 };
+  if (running && !isRemoteVm(vm)) {
+    try { observed = runtimes.stats({ ...vm, runtime_ref: containerTarget(vm) }) || observed; } catch (_) {}
+  } else if (running) {
+    const cached = wingsGateway.statsCache.get(Number(vm.node_id));
+    const active = cached && cached.stats && cached.stats.vms && Array.isArray(cached.stats.vms.active_top_vms)
+      ? cached.stats.vms.active_top_vms.find((entry) => Number(entry.id) === Number(vm.id))
+      : null;
+    if (active) observed = { cpu_percent: Number(active.cpu_percent) || 0, memory_bytes: (Number(active.memory_mb) || 0) * 1024 * 1024 };
+  }
+  const usedBytes = Number(observed.memory_bytes) || 0;
+  const totalMemBytes = (parseInt(vm.memory, 10) || 1024) * 1024 * 1024;
+  const memPct = totalMemBytes > 0 ? Math.min(100, Math.round((usedBytes / totalMemBytes) * 100)) : 0;
+  return {
+    id: vm.id,
+    name: vm.name,
+    kind: vm.kind,
+    runtime: definitionFor(vm.kind).runtime,
+    status: running ? 'running' : 'stopped',
+    running,
+    pid: null,
+    uptime: 0,
+    cpu: { percent: Number(observed.cpu_percent) || 0, cpus: vm.cpus || 1 },
+    memory: {
+      used_bytes: usedBytes,
+      used_mb: Math.round(usedBytes / 1024 / 1024),
+      total_mb: vm.memory,
+      percent: memPct,
+    },
+    disk: {
+      allocated: vm.disk_size,
+      actual_bytes: 0,
+      actual_mb: 0,
+      percent: 0,
+    },
+    ports: { ssh: vm.ssh_port, vnc: null, agent: null },
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function liveStats(vm) {
+  if (isContainerVm(vm)) return containerLiveStats(vm);
   const running = isRunning(vm);
   const pid = running ? pidOf(vm) : null;
   const uptime = running ? uptimeSeconds(vm) : 0;
@@ -1158,6 +1429,6 @@ function liveStats(vm) {
 
 module.exports = {
   VM_DIR, vmDir, dbVms, getVm, create, start, stop, restart, remove, update,
-  resizeDisk, isRunning, statusOf, serializeVm, canAccess, allocPort, allocVncPort, allocAgentPort,
-  parseForwards, normalizePortForwards, validateHostForwards, checkHostPortAvailable, explainQemuStartFailure, qemuStartFailure, buildQemuArgs, usage, uptimeSeconds, memUsage, cpuUsage, diskActualUsage, liveStats, totalDiskUsage, startOnBootAll, getOsList, getBootLog, clearBootLog, hasKvm, transferOwner, withVmOperationLock, restoreDiskUnderVmLock, runBoundedProcess,
+  resizeDisk, isRunning, statusOf, serializeVm, canAccess, allocPort, allocVncPort, allocAgentPort, isContainerVm, containerTarget,
+  parseForwards, normalizePortForwards, validateHostForwards, checkHostPortAvailable, explainQemuStartFailure, qemuStartFailure, buildQemuArgs, usage, uptimeSeconds, memUsage, cpuUsage, diskActualUsage, liveStats, totalDiskUsage, startOnBootAll, syncContainerStates, getOsList, getBootLog, clearBootLog, hasKvm, transferOwner, withVmOperationLock, restoreDiskUnderVmLock, runBoundedProcess,
 };

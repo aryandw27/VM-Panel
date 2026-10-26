@@ -13,6 +13,7 @@ const {
   getImagesDir,
 } = require('../lib/config');
 const logger = require('../lib/logger');
+const capabilities = require('../services/runtimes/capabilities');
 
 const MAX_RECONNECT_DELAY_MS = 30000;
 const HEARTBEAT_INTERVAL_MS = 25000;
@@ -92,7 +93,7 @@ class WingsClient {
         port: parseInt(vps.ssh_port, 10) || getSshPort(),
         password: vps.ssh_password || '',
       },
-      capabilities: ['vm_create', 'vm_start', 'vm_stop', 'vm_delete', 'vm_stats', 'node_stats'],
+      capabilities: capabilities.detectCached(),
     });
   }
 

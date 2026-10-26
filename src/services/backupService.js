@@ -23,6 +23,9 @@ async function listAll() {
 }
 
 async function createBackup(vm, { user = null, name = null, kind = 'full' } = {}) {
+  if (vmService.isContainerVm(vm)) {
+    throw new Error('Container deployments do not use QCOW2 disk images, so panel backups are unavailable. Back up the workload inside the container or with the runtime snapshot tool instead.');
+  }
   return vmService.withVmOperationLock(vm, { user, action: 'backup_create', execute: async () => {
   if (vmService.isRunning(vm)) {
     logger.info('[backup] VM is running; taking qemu snapshot');
@@ -53,6 +56,7 @@ async function createBackup(vm, { user = null, name = null, kind = 'full' } = {}
 async function restoreBackup(backup, { user = null } = {}) {
   const vm = await vmService.getVm(backup.vm_id);
   if (!vm) throw new Error('VM not found');
+  if (vmService.isContainerVm(vm)) throw new Error('Container deployments cannot restore a QCOW2 disk image.');
   return vmService.restoreDiskUnderVmLock(vm, { user, restore: async () => {
     if (!fs.existsSync(backup.file)) throw new Error('Backup file missing');
     const tmp = vm.img_file + '.restore';

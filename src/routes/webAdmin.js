@@ -5,6 +5,8 @@ const config = require('../lib/config');
 const logger = require('../lib/logger');
 const { collections, settings } = require('../lib/db');
 const vmService = require('../services/vmService');
+const runtimes = require('../services/runtimes');
+const capacityService = require('../services/capacityService');
 const backupService = require('../services/backupService');
 const authService = require('../services/authService');
 const activity = require('../services/activityService');
@@ -492,7 +494,34 @@ router.get('/admin/servers/create', async (req, res, next) => {
   try {
     const users = await collections.users.find({}, { projection: { id: 1, username: 1, email: 1 } }).sort({ username: 1 }).toArray();
     const nodes = await nodeService.listNodes();
-    render(res, 'create', { osList: vmService.getOsList(), users, nodes, selectedNodeId: parseInt(req.query.node_id, 10) || 1 });
+    const localCapabilities = runtimes.capabilities.detectCached();
+    const nodeAvailability = {};
+    for (const node of nodes) {
+      const caps = Number(node.id) === 1
+        ? localCapabilities
+        : runtimes.capabilities.normalizeIncoming(node.runtime_capabilities);
+      nodeAvailability[node.id] = runtimes.capabilities.publicAvailability(caps);
+    }
+    nodeAvailability[1] = nodeAvailability[1] || runtimes.capabilities.publicAvailability(localCapabilities);
+    const nodeCapacity = {};
+    for (const node of nodes) {
+      try { nodeCapacity[node.id] = await capacityService.summary(node.id); } catch (_) { nodeCapacity[node.id] = null; }
+    }
+    const selectedNodeId = parseInt(req.query.node_id, 10) || 1;
+    const selectedAvailability = nodeAvailability[selectedNodeId] || nodeAvailability[1] || {};
+    const defaultKind = runtimes.definitions.KIND_ORDER.find((id) => selectedAvailability[id] && selectedAvailability[id].available)
+      || runtimes.definitions.DEFAULT_KIND;
+    render(res, 'create', {
+      osList: vmService.getOsList(),
+      users,
+      nodes,
+      selectedNodeId,
+      defaultKind,
+      deploymentKinds: runtimes.definitions.publicKinds(),
+      nodeAvailability,
+      nodeCapacity,
+      localCapabilities,
+    });
   } catch (err) {
     next(err);
   }
@@ -505,6 +534,9 @@ router.post('/admin/servers/create', createUpload.fields([{ name: 'image', maxCo
     const owner = await collections.users.findOne({ id: ownerId });
     if (!owner) return res.status(400).json({ error: 'Owner not found' });
     const data = { ...req.body };
+    // Multipart uses "image" for the uploaded disk; container deployments send a
+    // text reference under a distinct field to avoid colliding with file uploads.
+    if (data.container_image !== undefined) data.image = data.container_image;
     try { if (data.port_forwards) data.port_forwards = JSON.parse(data.port_forwards); } catch (_) { data.port_forwards = []; }
     if (files.image && files.image[0]) data.upload_image = files.image[0];
     if (files.image && files.image[0]) {
@@ -517,7 +549,11 @@ router.post('/admin/servers/create', createUpload.fields([{ name: 'image', maxCo
     }
     return res.json({ ok: true, vm, redirect: `/admin/servers/${vm.id}` });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    const status = e.category === 'invalid_request' ? 400
+      : e.category === 'capacity_exceeded' || e.category === 'runtime_unavailable' ? 409
+        : e.category === 'port_in_use' ? 409
+          : 500;
+    return res.status(status).json({ error: e.message, category: e.category || undefined });
   }
 });
 

@@ -122,7 +122,7 @@ function handleRegister(conn, message) {
     ip: String(message.ip || ''),
     hostname: String(message.hostname || ''),
     name: String(message.name || ''),
-    capabilities: Array.isArray(message.capabilities) ? message.capabilities : [],
+    capabilities: (message.capabilities && typeof message.capabilities === 'object') ? message.capabilities : [],
   };
   conn.info = info;
   conn.lastSeenAt = nowIso();
@@ -134,6 +134,10 @@ function handleRegister(conn, message) {
     wings_hostname: info.hostname,
     wings_last_seen_at: conn.lastSeenAt,
   };
+  const hasCapabilities = Array.isArray(info.capabilities)
+    ? info.capabilities.length > 0
+    : Boolean(info.capabilities && Object.keys(info.capabilities).length);
+  if (hasCapabilities) updates.runtime_capabilities = info.capabilities;
 
   const ssh = message.ssh || {};
   if (ssh.user) {
@@ -199,7 +203,7 @@ async function handleEvent(conn, event, data) {
     vm_stopped: 'stopped',
     vm_deleted: 'deleted',
   };
-  const status = statusByEvent[event];
+  const status = event === 'vm_created' && data.status ? String(data.status) : statusByEvent[event];
   if (!status || status === 'deleted') {
     logger.debug(`[wings] event ${event} for vm ${vmId}`);
     return;

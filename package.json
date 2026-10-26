@@ -20,6 +20,7 @@
     "test:vm-operations": "node --test scripts/test-vm-operations.js",
     "test:vm-operations:mongo": "node --test scripts/test-vm-operations-mongo.js",
     "test:vm-qemu-staging": "node --test scripts/test-vm-lifecycle-qemu.js",
+    "test:runtimes": "node --test scripts/test-runtimes.js",
     "test:themes": "node --test scripts/test-themes.js",
     "test:request-security": "node --test scripts/test-request-security.js",
     "test:notifications": "node --test scripts/test-notifications.js",

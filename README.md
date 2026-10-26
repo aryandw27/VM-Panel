@@ -250,6 +250,12 @@ The account AI assistant uses each user's own provider key. Before users save ke
 
 ---
 
+## 🧱 Deployment runtimes
+
+Admins choose a deployment type when creating a server: dedicated or shared QEMU VMs, Docker containers, LXC containers, Incus containers, or Incus VMs. Every workload gets hard CPU and memory limits, and creation is refused when the target node would be oversubscribed. See [docs/runtime-deployments.md](docs/runtime-deployments.md) for prerequisites, limits, and security notes.
+
+---
+
 ## 🔌 Core API Endpoints
 
 | Method | Endpoint | Description |

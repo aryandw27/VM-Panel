@@ -162,15 +162,22 @@ function attachConsoleSocket(io) {
         socket.emit('console:offline', { sessionId });
         return;
       }
+      if (vm.is_container && vm.access && vm.access.terminal === false) {
+        socket.emit('console:error', { sessionId, message: 'Web terminal access is disabled for this deployment.' });
+        return;
+      }
 
       const initialCols = payload.cols || socket.data.cols || 169;
       const initialRows = payload.rows || socket.data.rows || 33;
 
-      sshService.shellStreamWithRetry(vm, {
-        maxRetries: 30,
-        retryDelay: 1500,
-        shouldContinue: () => socket.connected && !socket.data.isLeaving && vmService.isRunning(vm),
-      })
+      const openSession = vm.is_container
+        ? require('./services/containerTerminal').open(vm, { cols: initialCols, rows: initialRows })
+        : sshService.shellStreamWithRetry(vm, {
+          maxRetries: 30,
+          retryDelay: 1500,
+          shouldContinue: () => socket.connected && !socket.data.isLeaving && vmService.isRunning(vm),
+        });
+      openSession
         .then(({ conn, stream }) => {
           if (socket.data.isLeaving || !socket.connected) {
             try { stream.end(); } catch (_) {}
@@ -394,6 +401,13 @@ async function bootstrap() {
 
   
   setTimeout(() => vmService.startOnBootAll(), 3000);
+  // Container runtimes live outside QEMU's PID files, so reconcile their actual
+  // state periodically instead of trusting the last database write.
+  setTimeout(() => vmService.syncContainerStates().catch(() => {}), 6000);
+  const containerSyncTimer = setInterval(() => {
+    vmService.syncContainerStates().catch(() => {});
+  }, 60 * 1000);
+  if (typeof containerSyncTimer.unref === 'function') containerSyncTimer.unref();
 
   return { webServer, io, apiApp };
 }
