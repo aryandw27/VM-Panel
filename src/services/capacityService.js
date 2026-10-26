@@ -141,13 +141,6 @@ async function assertCapacity({ nodeId = 1, kind, cpus, memory, disk_size, exclu
     }
   }
 
-  if (failures.length) {
-    throw Object.assign(
-      new Error(`Not enough capacity on ${current.name}: requesting ${requestedCpus} vCPU / ${requestedMemory} MB would exceed ${failures.join('; ')}. Free resources or pick another node.`),
-      { category: 'capacity_exceeded', details: { node: current, requested: { cpus: requestedCpus, memory: requestedMemory } } },
-    );
-  }
-
   return {
     node_id: Number(nodeId) || 1,
     cpu_limit: cpuLimit,
