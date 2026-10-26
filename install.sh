@@ -1100,6 +1100,246 @@ do_uninstall_wings() {
 
 
 
+runtime_ok_docker() { command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; }
+runtime_ok_lxc()    { command -v lxc   >/dev/null 2>&1 && lxc info   >/dev/null 2>&1; }
+runtime_ok_incus()  { command -v incus >/dev/null 2>&1 && incus info >/dev/null 2>&1; }
+incus_daemon_ready() { incus info >/dev/null 2>&1; }
+
+os_release_value() {
+  grep -E "^${1}=" /etc/os-release 2>/dev/null | head -n 1 | cut -d= -f2- | tr -d '"'
+}
+
+wait_for_runtime() {
+  local check="$1"
+  local seconds="${2:-30}"
+  local waited=0
+  while [ "$waited" -lt "$seconds" ]; do
+    if "$check" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  "$check" >/dev/null 2>&1
+}
+
+install_docker_runtime() {
+  if runtime_ok_docker; then
+    log_ok "Docker already installed and running ($(docker --version 2>/dev/null | head -n1))."
+    return 0
+  fi
+
+  log_info "Installing the Docker engine..."
+  if ! command -v docker >/dev/null 2>&1; then
+    apt-get install -y --no-install-recommends docker.io || {
+      log_warn "The Docker package could not be installed."
+      return 1
+    }
+  fi
+  systemctl enable --now docker >/dev/null 2>&1 || service docker start >/dev/null 2>&1 || true
+
+  if wait_for_runtime runtime_ok_docker 30; then
+    log_ok "Docker is ready ($(docker --version 2>/dev/null | head -n1))."
+    return 0
+  fi
+  log_warn "Docker is installed but its daemon is not responding. Start it with: systemctl start docker"
+  return 1
+}
+
+trust_images_remote() {
+  local client="$1"
+  local protocol="$2"
+  command -v "$client" >/dev/null 2>&1 || return 0
+
+  # Listing remote images only succeeds without a TTY when the remote
+  # certificate is already trusted, which is what panel-created instances need.
+  if "$client" image list "images:" --format json >/dev/null 2>&1; then
+    return 0
+  fi
+
+  "$client" remote remove images >/dev/null 2>&1 || true
+  "$client" remote add images https://images.linuxcontainers.org --protocol "$protocol" --public --accept-certificate >/dev/null 2>&1 ||
+    "$client" remote add images https://images.linuxcontainers.org --protocol "$protocol" --accept-certificate >/dev/null 2>&1 ||
+    return 1
+  return 0
+}
+
+init_incus_daemon() {
+  # Minimal non-interactive initialization: default storage pool + bridge.
+  if ! incus network show incusbr0 >/dev/null 2>&1 && ! incus network show lxdbr0 >/dev/null 2>&1; then
+    log_info "Initializing Incus with a default storage pool and network bridge..."
+    incus admin init --auto >/dev/null 2>&1 ||
+      incus admininit --auto >/dev/null 2>&1 ||
+      log_warn "Automatic Incus initialization failed. Run 'incus admin init' manually."
+  fi
+
+  if ! trust_images_remote incus incus; then
+    log_warn "Could not pre-trust the images.linuxcontainers.org certificate; the first image launch may ask to confirm it."
+  fi
+}
+
+install_incus_runtime() {
+  if runtime_ok_incus; then
+    log_ok "Incus already installed and running ($(incus --version 2>/dev/null))."
+    init_incus_daemon
+    return 0
+  fi
+
+  log_info "Installing Incus (system containers and virtual machines)..."
+  local codename major
+  codename="$(os_release_value VERSION_CODENAME)"
+  major="$(os_release_value VERSION_ID | cut -d. -f1)"
+
+  # Debian 13+ and Ubuntu 24.04+ ship Incus in their own repositories.
+  local native=0
+  case "$OS_ID" in
+    debian) [ "${major:-0}" -ge 13 ] && native=1 ;;
+    ubuntu) [ "${major:-0}" -ge 24 ] && native=1 ;;
+  esac
+
+  if [ "$native" -eq 1 ]; then
+    log_info "Using the native Incus package from the distribution repositories..."
+    apt-get install -y --no-install-recommends incus || true
+  fi
+
+  if ! command -v incus >/dev/null 2>&1; then
+    if [ -z "$codename" ]; then
+      log_warn "Could not detect the distribution codename; skipping the Incus repository."
+      return 1
+    fi
+    log_info "Adding the official Incus repository (linuxcontainers.org) for ${codename}..."
+    install -d -m 0755 /etc/apt/keyrings
+    if ! curl -fsSL https://linuxcontainers.org/incus/keys/incus-apt.pub | gpg --batch --yes --dearmor -o /etc/apt/keyrings/incus-apt.gpg; then
+      log_warn "Could not download the Incus repository signing key."
+      return 1
+    fi
+    echo "deb [signed-by=/etc/apt/keyrings/incus-apt.gpg] https://linuxcontainers.org/incus/stable/${codename} /" > /etc/apt/sources.list.d/incus.list
+    apt-get update -y
+    apt-get install -y --no-install-recommends incus || {
+      log_warn "The Incus package could not be installed."
+      return 1
+    }
+  fi
+
+  if ! command -v incus >/dev/null 2>&1; then
+    log_warn "Incus is not available for this system."
+    return 1
+  fi
+
+  # Firmware and tools used when launching Incus virtual machines.
+  apt-get install -y --no-install-recommends ovmf qemu-system-x86 qemu-utils >/dev/null 2>&1 || true
+
+  # Subordinate UID/GID ranges used by unprivileged containers.
+  grep -qs '^root:' /etc/subuid || echo "root:1000000:1000000000" >> /etc/subuid
+  grep -qs '^root:' /etc/subgid || echo "root:1000000:1000000000" >> /etc/subgid
+
+  systemctl enable --now incus >/dev/null 2>&1 || systemctl enable --now incus.socket >/dev/null 2>&1 || true
+  if ! wait_for_runtime incus_daemon_ready 30; then
+    log_warn "Incus is installed but its daemon did not become ready. Check: systemctl status incus"
+    return 1
+  fi
+
+  init_incus_daemon
+  log_ok "Incus is ready ($(incus --version 2>/dev/null))."
+  return 0
+}
+
+install_lxc_runtime() {
+  if runtime_ok_lxc; then
+    log_ok "LXC is already installed and running ($(lxc --version 2>/dev/null | head -n1))."
+    trust_images_remote lxc lxd || true
+    trust_images_remote lxc incus || true
+    return 0
+  fi
+
+  if command -v lxc >/dev/null 2>&1; then
+    systemctl enable --now lxd >/dev/null 2>&1 || systemctl enable --now lxd.socket >/dev/null 2>&1 || snap start lxd >/dev/null 2>&1 || true
+    if wait_for_runtime runtime_ok_lxc 20; then
+      log_ok "LXC is ready ($(lxc --version 2>/dev/null | head -n1))."
+      trust_images_remote lxc lxd || true
+      return 0
+    fi
+    log_warn "An 'lxc' command exists but its daemon is not answering. If LXD is installed, run: lxd init --auto"
+    return 1
+  fi
+
+  # The panel's LXC driver speaks the LXD command language, and Incus is fully
+  # compatible with the subcommands it uses, so link its client as 'lxc'.
+  if runtime_ok_incus; then
+    local incus_bin
+    incus_bin="$(command -v incus)"
+    log_info "Linking the Incus client as 'lxc' for the LXC runtime..."
+    ln -sf "$incus_bin" /usr/local/bin/lxc
+    if wait_for_runtime runtime_ok_lxc 15; then
+      trust_images_remote lxc incus || true
+      log_ok "LXC is ready ($(lxc --version 2>/dev/null | head -n1)) using the Incus backend."
+      return 0
+    fi
+  fi
+
+  # Fall back to Canonical's LXD snap when nothing else can provide 'lxc'.
+  if command -v snap >/dev/null 2>&1; then
+    log_info "Installing LXD from the snap store..."
+    snap install lxd >/dev/null 2>&1 || true
+    if wait_for_runtime runtime_ok_lxc 60; then
+      lxd init --auto >/dev/null 2>&1 || true
+      trust_images_remote lxc lxd || true
+      log_ok "LXC is ready ($(lxc --version 2>/dev/null | head -n1)) using LXD."
+      return 0
+    fi
+  fi
+
+  log_warn "No LXC-compatible runtime could be installed. LXC deployments stay disabled until 'lxc info' works."
+  return 1
+}
+
+do_install_components() {
+  safe_clear
+  printf "${CYAN}${BOLD}"
+  echo "================================================================="
+  echo "   🧩 Install All Runtime Components (Docker / LXC / Incus)     "
+  echo "================================================================="
+  printf "${NC}\n"
+
+  export DEBIAN_FRONTEND=noninteractive
+  export PATH="$PATH:$(npm config get prefix 2>/dev/null)/bin:/usr/local/bin:/usr/bin"
+
+  log_info "Updating APT package repositories..."
+  apt-get update -y
+
+  log_info "Installing helper packages (curl, ca-certificates, gnupg)..."
+  apt-get install -y --no-install-recommends curl ca-certificates gnupg >/dev/null
+
+  install_docker_runtime
+  install_incus_runtime
+  # Installed last because the LXC runtime may be provided by the Incus link.
+  install_lxc_runtime
+
+  echo ""
+  log_info "Runtime status as the panel detects it:"
+  if runtime_ok_docker; then
+    log_ok "Docker:  $(docker --version 2>/dev/null | head -n1)"
+  else
+    log_warn "Docker:  not available"
+  fi
+  if runtime_ok_lxc; then
+    log_ok "LXC:     $(lxc --version 2>/dev/null | head -n1)"
+  else
+    log_warn "LXC:     not available"
+  fi
+  if runtime_ok_incus; then
+    log_ok "Incus:   $(incus --version 2>/dev/null)"
+  else
+    log_warn "Incus:   not available"
+  fi
+  echo ""
+  log_info "The admin create page refreshes runtime availability every ~30 seconds."
+  log_info "Run this on each Wings compute node as well so containers are available there too."
+  echo ""
+}
+
+
+
 show_menu() {
   while true; do
     safe_clear
@@ -1117,11 +1357,12 @@ show_menu() {
     echo "  [5] 🗑️  5. Uninstall Panel (Safe uninstall wizard)"
     echo "  [6] 🐾 6. Install Wings (Install VM compute node on this server)"
     echo "  [7] 🔄 7. Update Wings (Update compute node)"
-    echo "  [8] 🗑️  8. Uninstall Wings (Remove compute node)"
-    echo "  [0] 🚪 0. Exit"
+  echo "  [8] 🗑️  8. Uninstall Wings (Remove compute node)"
+  echo "  [9] 🧩  9. Install All Components (Docker, LXC & Incus runtimes)"
+  echo "  [0] 🚪 0. Exit"
     echo ""
     printf "${CYAN}=================================================================${NC}\n"
-    read -r -p "Enter choice [0-8]: " CHOICE
+    read -r -p "Enter choice [0-9]: " CHOICE
 
     case "$CHOICE" in
       1)
@@ -1155,12 +1396,16 @@ show_menu() {
         do_uninstall_wings
         read -r -p "Press Enter to return to menu..." _
         ;;
+      9)
+        do_install_components
+        read -r -p "Press Enter to return to menu..." _
+        ;;
       0)
         log_info "Exiting SiliconHost VM Panel Installer. Goodbye!"
         exit 0
         ;;
       *)
-        log_warn "Invalid option '$CHOICE'. Please choose 1-8, or 0."
+        log_warn "Invalid option '$CHOICE'. Please choose 1-9, or 0."
         sleep 1.2
         ;;
     esac
@@ -1207,6 +1452,9 @@ while [ $# -gt 0 ]; do
       ;;
     8|--uninstall-wings|uninstall-wings)
       ACTION="uninstall_wings"
+      ;;
+    9|--install-components|install-components)
+      ACTION="install_components"
       ;;
     --menu)
       ACTION="menu"
@@ -1258,6 +1506,7 @@ while [ $# -gt 0 ]; do
       echo "  6, --install-wings              Install Wings compute node on this VPS"
       echo "  7, --update-wings               Update the Wings compute node"
       echo "  8, --uninstall-wings            Uninstall the Wings compute node"
+      echo "  9, --install-components         Install Docker, LXC and Incus runtimes"
       echo "  --menu                           Open management menu"
       echo ""
       echo "Options:"
@@ -1287,6 +1536,7 @@ if [ -n "$ACTION" ]; then
     install_wings)   do_install_wings ;;
     update_wings)    do_update_wings ;;
     uninstall_wings) do_uninstall_wings ;;
+    install_components) do_install_components ;;
     menu)        show_menu ;;
   esac
 else
